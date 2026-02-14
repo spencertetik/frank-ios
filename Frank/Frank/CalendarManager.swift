@@ -224,11 +224,10 @@ final class CalendarManager {
         let events = upcomingEvents.prefix(5).map { event -> [String: String] in
             [
                 "title": event.title,
-                "start": formatter.string(from: event.startDate),
-                "calendar": event.calendarName
+                "start": formatter.string(from: event.startDate)
             ]
         }
-        SharedState.updateEvents(events)
+        SharedStateWriter.updateEvents(events)
     }
     
     /// Sync events to the gateway so Frank can see your calendar

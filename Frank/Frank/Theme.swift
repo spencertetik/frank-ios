@@ -4,8 +4,10 @@ import SwiftUI
 struct Theme {
     // MARK: - Colors
     
-    /// Primary accent color - orange
-    static let accent = Color.orange
+    /// Primary accent color - configurable
+    static var accent: Color {
+        AccentColorManager.currentColor
+    }
     
     /// Dark glassy background colors (matching web dashboard)
     static let bgPrimary = Color(red: 0.047, green: 0.055, blue: 0.086)    // #0c0e16

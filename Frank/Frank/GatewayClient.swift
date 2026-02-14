@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import ActivityKit
 import UIKit
+import Combine
 
 @Observable
 @MainActor
@@ -11,6 +12,13 @@ final class GatewayClient {
     private var suppressDisconnectHaptic = false
     var currentTask = "Waiting for instructions"
     var activeAgents: [AgentInfo] = []
+    @ObservationIgnored
+    @Published var activeSessions: [ActiveSession] = [] {
+        didSet {
+            activeSessionsSnapshot = activeSessions
+        }
+    }
+    var activeSessionsSnapshot: [ActiveSession] = []
     var messages: [ChatMessage] = []
     var sessionUptime: TimeInterval = 0
     private var connectedAt: Date?
@@ -40,6 +48,8 @@ final class GatewayClient {
     private var quickCommandStreamText: String = ""
     private let iso8601Formatter = ISO8601DateFormatter()
     private let sessionDelegate = TailscaleTLSDelegate()
+    private var storedPushToken: String? = UserDefaults.standard.string(forKey: "pushDeviceToken")
+    private var activeSessionsTask: Task<Void, Never>? = nil
     
     // Live Activity management
     private var currentActivity: Activity<FrankActivityAttributes>?
@@ -49,6 +59,22 @@ final class GatewayClient {
         let name: String
         let status: String
         let model: String?
+    }
+    
+    enum SessionKind: String {
+        case main, subagent, cron, group, other
+    }
+    
+    struct ActiveSession: Identifiable, Equatable {
+        let key: String
+        let model: String
+        let label: String
+        let updatedAt: Date
+        let lastMessage: String
+        let isActive: Bool
+        let kind: SessionKind
+        let totalTokens: Int
+        var id: String { key }
     }
     
     struct ChatMessage: Identifiable {
@@ -106,6 +132,7 @@ final class GatewayClient {
         reconnectTask?.cancel()
         pingTask?.cancel()
         uptimeTask?.cancel()
+        activeSessionsTask?.cancel()
         disconnectGraceTask?.cancel()
         webSocket?.cancel(with: .goingAway, reason: nil)
         webSocket = nil
@@ -114,6 +141,7 @@ final class GatewayClient {
         sessionUptime = 0
         challengeNonce = nil
         pendingRequests.removeAll()
+        activeSessions = []
         
         // End Live Activity
         endLiveActivity()
@@ -127,16 +155,19 @@ final class GatewayClient {
     }
     
     /// Sync current state to App Groups UserDefaults for widgets
-    func syncToSharedState() {
-        let todayCount = Calendar.current.isDateInToday(Date()) ? messages.filter { Calendar.current.isDateInToday($0.timestamp) }.count : 0
-        SharedState.update(
+    private func syncToSharedState() {
+        let assistantMessages = messages.filter { !$0.isFromUser }
+        let lastAssistantMessage = assistantMessages.last?.text.prefix(200).description ?? ""
+        let messagesToday = assistantMessages.filter { Calendar.current.isDateInToday($0.timestamp) }.count
+        let currentTaskStatus = isConnected ? "Connected - Ready" : "Disconnected"
+        SharedStateWriter.update(
             isConnected: isConnected,
-            currentTask: currentTask,
+            currentTask: currentTaskStatus,
             modelName: modelName,
             subAgentCount: activeSubAgentCount,
             sessionUptime: sessionUptime,
-            lastMessage: messages.last(where: { !$0.isFromUser })?.text.prefix(200).description ?? "",
-            messagesToday: todayCount
+            lastMessage: lastAssistantMessage,
+            messagesToday: messagesToday
         )
     }
     
@@ -195,8 +226,11 @@ final class GatewayClient {
                     // Load chat history
                     self.loadChatHistory()
                     self.fetchSessionStatus()
+                    self.fetchActiveSessions()
+                    self.startActiveSessionsPolling()
                     // Start Live Activity
                     self.startLiveActivity()
+                    self.transmitStoredPushToken()
                     
                     // Add haptic feedback for connection
                     let success = UINotificationFeedbackGenerator()
@@ -263,6 +297,7 @@ final class GatewayClient {
                     }
                 }
                 self.messages = loaded
+                self.syncToSharedState()
             }
         }
     }
@@ -321,6 +356,22 @@ final class GatewayClient {
         let location: String?
     }
     
+    // MARK: - Push Notifications
+
+    func sendPushToken(_ token: String) {
+        storedPushToken = token
+        UserDefaults.standard.set(token, forKey: "pushDeviceToken")
+        transmitStoredPushToken()
+    }
+
+    private func transmitStoredPushToken() {
+        guard isConnected, let token = storedPushToken else { return }
+        sendRequest(method: "device.registerPush", params: [
+            "token": token,
+            "platform": "apns"
+        ])
+    }
+
     // MARK: - Messaging
     
     func reloadHistory() {
@@ -346,6 +397,7 @@ final class GatewayClient {
         let msgId = UUID().uuidString
         let msg = ChatMessage(id: msgId, text: text, isFromUser: true, timestamp: Date(), imageData: jpegData)
         messages.append(msg)
+        syncToSharedState()
         
         // Send as multipart content with image
         let content: [[String: Any]] = [
@@ -365,6 +417,7 @@ final class GatewayClient {
         let msgId = UUID().uuidString
         let msg = ChatMessage(id: msgId, text: text, isFromUser: true, timestamp: Date())
         messages.append(msg)
+        syncToSharedState()
         
         sendRequest(method: "chat.send", params: [
             "sessionKey": sessionKey,
@@ -410,6 +463,7 @@ final class GatewayClient {
     private func addSystemMessage(_ text: String) {
         let msg = ChatMessage(id: UUID().uuidString, text: text, isFromUser: false, timestamp: Date())
         messages.append(msg)
+        syncToSharedState()
     }
     
     // MARK: - Live Activities
@@ -691,6 +745,7 @@ final class GatewayClient {
         // Clean up socket silently
         pingTask?.cancel()
         uptimeTask?.cancel()
+        activeSessionsTask?.cancel()
         webSocket?.cancel(with: .goingAway, reason: nil)
         webSocket = nil
         challengeNonce = nil
@@ -823,6 +878,131 @@ final class GatewayClient {
             let status = (item["status"] as? String) ?? (item["state"] as? String) ?? "active"
             let model = (item["model"] as? String) ?? (item["modelName"] as? String)
             return AgentInfo(id: id, name: name, status: status, model: model)
+        }
+    }
+    
+    // MARK: - Active Sessions
+    
+    func fetchActiveSessions() {
+        sendRequest(method: "sessions.list", params: [
+            "limit": 20,
+            "includeLastMessage": true
+        ]) { [weak self] response in
+            Task { @MainActor in
+                guard let self else { return }
+                guard
+                    let data = response,
+                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else {
+                    self.activeSessions = []
+                    return
+                }
+                // Try multiple response shapes: payload.sessions, result.sessions, or top-level sessions
+                let sessions: [[String: Any]]? =
+                    (json["payload"] as? [String: Any])?["sessions"] as? [[String: Any]]
+                    ?? (json["result"] as? [String: Any])?["sessions"] as? [[String: Any]]
+                    ?? json["sessions"] as? [[String: Any]]
+                
+                guard let sessions else {
+                    print("[AgentTree] No sessions found in response. Full JSON: \(String(data: data, encoding: .utf8)?.prefix(500) ?? "nil")")
+                    self.activeSessions = []
+                    return
+                }
+                print("[AgentTree] Found \(sessions.count) sessions")
+                let mapped = sessions.compactMap { self.decodeActiveSession(from: $0) }
+                    .sorted(by: { $0.updatedAt > $1.updatedAt })
+                self.activeSessions = mapped
+            }
+        }
+    }
+    
+    private func decodeActiveSession(from dictionary: [String: Any]) -> ActiveSession? {
+        guard let key = dictionary["key"] as? String else { return nil }
+        let displayName = (dictionary["displayName"] as? String) ?? ""
+        let rawLabel = (dictionary["label"] as? String) ?? ""
+        let label = !rawLabel.isEmpty ? rawLabel : (!displayName.isEmpty ? displayName : key)
+        let model = (dictionary["model"] as? String) ?? (dictionary["activeModel"] as? String) ?? "Unknown"
+        let lastMessage = extractLastMessage(from: dictionary)
+        let updatedAt = parseUpdatedAt(from: dictionary) ?? Date()
+        let totalTokens = (dictionary["totalTokens"] as? Int) ?? 0
+        
+        // Classify by key pattern
+        let kind: SessionKind
+        if key.contains(":subagent:") {
+            kind = .subagent
+        } else if key.contains(":cron:") {
+            kind = .cron
+        } else if key.contains(":group:") || key.contains(":channel:") {
+            kind = .group
+        } else if key.hasSuffix(":main") {
+            kind = .main
+        } else {
+            kind = .other
+        }
+        
+        // Active = updated in last 5 minutes
+        let isActive = updatedAt.timeIntervalSinceNow > -300
+        
+        return ActiveSession(
+            key: key,
+            model: model,
+            label: label,
+            updatedAt: updatedAt,
+            lastMessage: lastMessage,
+            isActive: isActive,
+            kind: kind,
+            totalTokens: totalTokens
+        )
+    }
+    
+    private func extractLastMessage(from dictionary: [String: Any]) -> String {
+        if let task = dictionary["currentTask"] as? String, !task.isEmpty {
+            return task
+        }
+        if let messages = dictionary["messages"] as? [[String: Any]],
+           let latest = messages.first,
+           let content = latest["content"] {
+            let text = extractText(from: content)
+            if !text.isEmpty {
+                return text
+            }
+        }
+        if let summary = dictionary["summary"] as? String, !summary.isEmpty {
+            return summary
+        }
+        return "Idle"
+    }
+    
+    private func parseUpdatedAt(from dictionary: [String: Any]) -> Date? {
+        if let updated = dictionary["updatedAt"] as? Double {
+            let seconds = updated > 1_000_000_000_000 ? updated / 1000 : updated
+            return Date(timeIntervalSince1970: seconds)
+        }
+        if let updated = dictionary["updatedAt"] as? Int {
+            let seconds = updated > 1_000_000_000 ? Double(updated) / 1000 : Double(updated)
+            return Date(timeIntervalSince1970: seconds)
+        }
+        if let updatedString = dictionary["updatedAt"] as? String,
+           let date = iso8601Formatter.date(from: updatedString) {
+            return date
+        }
+        if let lastMessage = dictionary["lastMessageAt"] as? Double {
+            let seconds = lastMessage > 1_000_000_000_000 ? lastMessage / 1000 : lastMessage
+            return Date(timeIntervalSince1970: seconds)
+        }
+        return nil
+    }
+    
+    private func startActiveSessionsPolling() {
+        activeSessionsTask?.cancel()
+        activeSessionsTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                await MainActor.run {
+                    self.fetchActiveSessions()
+                }
+                try? await Task.sleep(for: .seconds(30))
+            }
         }
     }
 }

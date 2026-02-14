@@ -1,14 +1,47 @@
 import SwiftUI
 import EventKit
+import UserNotifications
+import UIKit
 
 @main
 struct FrankApp: App {
-    @State private var statusModel = FrankStatusModel()
-    @State private var gateway = GatewayClient()
-    @State private var calendarManager = CalendarManager()
-    @State private var notificationManager = NotificationManager()
-    @State private var quickCommandCache = QuickCommandCache()
+    @UIApplicationDelegateAdaptor(PushNotificationAppDelegate.self) private var appDelegate
+    @State private var statusModel: FrankStatusModel
+    @State private var gateway: GatewayClient
+    @State private var calendarManager: CalendarManager
+    @State private var notificationManager: NotificationManager
+    @State private var quickCommandCache: QuickCommandCache
+    @AppStorage(AccentColorManager.storageKey) private var accentColorHex = AccentColorManager.defaultHex
     @Environment(\.scenePhase) private var scenePhase
+
+    private var accentColor: Color { AccentColorManager.color(from: accentColorHex) }
+
+    init() {
+        let statusModel = FrankStatusModel()
+        let gateway = GatewayClient()
+        let calendarManager = CalendarManager()
+        let notificationManager = NotificationManager()
+        let quickCommandCache = QuickCommandCache()
+
+        _statusModel = State(initialValue: statusModel)
+        _gateway = State(initialValue: gateway)
+        _calendarManager = State(initialValue: calendarManager)
+        _notificationManager = State(initialValue: notificationManager)
+        _quickCommandCache = State(initialValue: quickCommandCache)
+
+        appDelegate.configurePushHandling(
+            onTokenUpdate: { token in
+                Task { @MainActor in
+                    gateway.sendPushToken(token)
+                }
+            },
+            onPermissionChange: {
+                Task { @MainActor in
+                    notificationManager.checkAuthorizationStatus()
+                }
+            }
+        )
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -18,6 +51,7 @@ struct FrankApp: App {
                 .environment(calendarManager)
                 .environment(notificationManager)
                 .environment(quickCommandCache)
+                .tint(accentColor)
                 .onAppear {
                     setupApp()
                 }
@@ -28,10 +62,6 @@ struct FrankApp: App {
                     handleConnectionChange(connected)
                 }
                 .task {
-                    // Request notification permissions on app launch
-                    await notificationManager.requestPermissions()
-                    
-                    // Start connection monitoring
                     notificationManager.startConnectionMonitoring(with: gateway)
                 }
         }
@@ -131,3 +161,76 @@ struct FrankApp: App {
 }
 
 // CalendarEvent → EKEvent conversion removed (notifications use CalendarEvent directly)
+
+// MARK: - Push Notifications
+
+final class PushNotificationAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    private var onTokenUpdate: ((String) -> Void)?
+    private var onPermissionChange: (() -> Void)?
+    private let notificationCenter = UNUserNotificationCenter.current()
+    private var cachedDeviceToken: String?
+    
+    func configurePushHandling(
+        onTokenUpdate: @escaping (String) -> Void,
+        onPermissionChange: @escaping () -> Void
+    ) {
+        self.onTokenUpdate = onTokenUpdate
+        self.onPermissionChange = onPermissionChange
+        if let cachedDeviceToken {
+            onTokenUpdate(cachedDeviceToken)
+        }
+    }
+    
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        notificationCenter.delegate = self
+        requestNotificationPermissions()
+        return true
+    }
+    
+    private func requestNotificationPermissions() {
+        notificationCenter.requestAuthorization(options: [.alert, .badge, .sound]) { [weak self] granted, error in
+            if let error {
+                print("Push authorization request failed: \(error.localizedDescription)")
+            }
+            DispatchQueue.main.async { [weak self] in
+                if granted {
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
+                self?.onPermissionChange?()
+                if !granted {
+                    print("Push authorization not granted")
+                }
+            }
+        }
+    }
+    
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        UserDefaults.standard.set(token, forKey: "pushDeviceToken")
+        cachedDeviceToken = token
+        onTokenUpdate?(token)
+    }
+    
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        print("Failed to register for remote notifications: \(error.localizedDescription)")
+    }
+    
+    // MARK: - UNUserNotificationCenterDelegate
+    
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .list])
+    }
+}

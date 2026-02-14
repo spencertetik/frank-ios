@@ -39,9 +39,14 @@ struct ContentView: View {
                 .tag(2)
                 
                 NavigationLink(value: 3) {
-                    Label("Settings", systemImage: "gear")
+                    Label("Agents", systemImage: "brain.head.profile")
                 }
                 .tag(3)
+
+                NavigationLink(value: 4) {
+                    Label("Settings", systemImage: "gear")
+                }
+                .tag(4)
             }
             .navigationTitle("Frank")
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
@@ -61,6 +66,8 @@ struct ContentView: View {
                     case 2:
                         ChatView(scrollTrigger: chatScrollTrigger)
                     case 3:
+                        AgentTreeView()
+                    case 4:
                         SettingsView()
                     default:
                         DashboardView()
@@ -105,8 +112,14 @@ struct ContentView: View {
                         Label("Chat", systemImage: "message")
                     }
                 
-                SettingsView()
+                AgentTreeView()
                     .tag(3)
+                    .tabItem {
+                        Label("Agents", systemImage: "brain.head.profile")
+                    }
+                
+                SettingsView()
+                    .tag(4)
                     .tabItem {
                         Label("Settings", systemImage: "gear")
                     }

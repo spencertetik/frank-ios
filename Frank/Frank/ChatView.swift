@@ -127,7 +127,10 @@ struct ChatView: View {
     }
     
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        proxy.scrollTo("bottom", anchor: .bottom)
+        // Delay slightly to ensure layout is complete after tab switch or new messages
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            proxy.scrollTo("bottom", anchor: .bottom)
+        }
     }
     
     // MARK: - Input Bar
@@ -178,7 +181,7 @@ struct ChatView: View {
                 } label: {
                     Image(systemName: pendingImage != nil ? "photo.fill" : "photo")
                         .font(.title3)
-                        .foregroundStyle(pendingImage != nil ? .orange : .secondary)
+                        .foregroundStyle(pendingImage != nil ? Theme.accent : .secondary)
                 }
                 .overlay {
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
@@ -196,7 +199,7 @@ struct ChatView: View {
                 Button(action: send) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(canSend ? .orange : .gray)
+                        .foregroundStyle(canSend ? Theme.accent : .gray)
                 }
                 .disabled(!canSend)
             }
@@ -269,7 +272,7 @@ struct ThinkingBubble: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Frank")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.accent)
                 
                 // Thinking header — always visible
                 Button {
@@ -320,7 +323,7 @@ struct ThinkingDots: View {
         HStack(spacing: 3) {
             ForEach(0..<3, id: \.self) { i in
                 Circle()
-                    .fill(.orange)
+                    .fill(Theme.accent)
                     .frame(width: 5, height: 5)
                     .opacity(phase == i ? 1.0 : 0.3)
             }
@@ -348,7 +351,7 @@ struct ChatBubble: View {
                 if !message.isFromUser {
                     Text("Frank")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.accent)
                 }
                 
                 bubbleContent
@@ -396,7 +399,7 @@ struct ChatBubble: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
-            message.isFromUser ? AnyShapeStyle(Color.orange) : AnyShapeStyle(Color.white.opacity(0.06)),
+            message.isFromUser ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Color.white.opacity(0.06)),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
         .overlay(
@@ -452,7 +455,7 @@ struct SuggestionChip: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule())
-            .foregroundStyle(.orange)
+            .foregroundStyle(Theme.accent)
         }
         .buttonStyle(.plain)
     }
@@ -491,7 +494,7 @@ struct StreamingIndicator: View {
     @State private var animate = false
     var body: some View {
         HStack(spacing: 6) {
-            Circle().fill(.orange).frame(width: 6, height: 6)
+            Circle().fill(Theme.accent).frame(width: 6, height: 6)
                 .scaleEffect(animate ? 1.3 : 0.8)
                 .opacity(animate ? 0.2 : 1)
                 .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: animate)

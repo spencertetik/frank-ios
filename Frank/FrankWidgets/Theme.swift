@@ -1,11 +1,49 @@
 import SwiftUI
 
+/// Widget-specific accent color helper
+private enum WidgetAccentColorManager {
+    static let storageKey = "accentColor"
+    static let defaultHex = "#FF7A18"
+    static let defaultColor = Color(red: 1.0, green: 0.48, blue: 0.09)
+    
+    static var currentHex: String {
+        UserDefaults.standard.string(forKey: storageKey) ?? defaultHex
+    }
+    
+    static var currentColor: Color {
+        Color(hex: currentHex) ?? defaultColor
+    }
+}
+
+private extension Color {
+    init?(hex: String) {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        guard cleaned.count == 6 || cleaned.count == 8 else { return nil }
+        var value: UInt64 = 0
+        guard Scanner(string: cleaned).scanHexInt64(&value) else { return nil }
+        let divisor = 255.0
+        let red, green, blue, alpha: Double
+        if cleaned.count == 6 {
+            red = Double((value & 0xFF0000) >> 16) / divisor
+            green = Double((value & 0x00FF00) >> 8) / divisor
+            blue = Double(value & 0x0000FF) / divisor
+            alpha = 1.0
+        } else {
+            red = Double((value & 0xFF000000) >> 24) / divisor
+            green = Double((value & 0x00FF0000) >> 16) / divisor
+            blue = Double((value & 0x0000FF00) >> 8) / divisor
+            alpha = Double(value & 0x000000FF) / divisor
+        }
+        self = Color(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
 /// Centralized theme system for Frank iOS app
 struct Theme {
     // MARK: - Colors
     
-    /// Primary accent color - orange
-    static let accent = Color.orange
+    /// Primary accent color - configurable
+    static var accent: Color { WidgetAccentColorManager.currentColor }
     
     /// Background colors for light/dark mode
     static let background = Color(.systemBackground)

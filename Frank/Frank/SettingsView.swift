@@ -1,10 +1,13 @@
 import SwiftUI
 import EventKit
 import ActivityKit
+import UserNotifications
+import UIKit
 
 struct SettingsView: View {
     @Environment(GatewayClient.self) private var gateway
     @Environment(CalendarManager.self) private var calendarManager
+    @Environment(NotificationManager.self) private var notificationManager
     
     @AppStorage("gatewayHost") private var host = "100.118.254.15"
     @AppStorage("gatewayHostTailscale") private var tailscaleHost = "spencers-mac-mini.tail6878f.ts.net"
@@ -12,10 +15,20 @@ struct SettingsView: View {
     @AppStorage("gatewayToken") private var token = "ed7074d189b4e177ed1979f63b891a27d6f34fc8e67f7063"
     @AppStorage("autoConnect") private var autoConnect = true
     @AppStorage("useTailscale") private var useTailscale = false
+    @AppStorage(AccentColorManager.storageKey) private var accentColorHex = AccentColorManager.defaultHex
     
     @State private var showingToken = false
     
     private var activeHost: String { useTailscale ? tailscaleHost : host }
+    private var accentColorBinding: Binding<Color> {
+        Binding(
+            get: { AccentColorManager.color(from: accentColorHex) },
+            set: { newValue in
+                accentColorHex = newValue.hexString() ?? AccentColorManager.defaultHex
+            }
+        )
+    }
+    private let accentColorColumns = [GridItem(.adaptive(minimum: 44), spacing: 12)]
     
     var body: some View {
         NavigationStack {
@@ -111,6 +124,26 @@ struct SettingsView: View {
                     }
                 }
                 
+                // Notifications
+                Section {
+                    HStack {
+                        Text("Permission")
+                        Spacer()
+                        Text(notificationStatusText)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    if notificationManager.authorizationStatus == .denied {
+                        Button("Open Settings") {
+                            openNotificationSettings()
+                        }
+                    }
+                } header: {
+                    Text("Notifications")
+                } footer: {
+                    Text("Enable push notifications to get alerts from Frank.")
+                }
+
                 // Live Activities
                 Section {
                     HStack {
@@ -124,7 +157,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Live Activities are disabled.")
                                 .font(.caption)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Theme.accent)
                             Text("Enable them in Settings → Frank → Live Activities")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -155,6 +188,50 @@ struct SettingsView: View {
                     Text("Calendar")
                 }
                 
+                // Appearance
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Accent Color")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Pick a preset or choose your own color to personalize Frank.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        LazyVGrid(columns: accentColorColumns, spacing: 12) {
+                            ForEach(AccentColorOption.presets) { option in
+                                let isSelected = accentColorHex.caseInsensitiveCompare(option.hex) == .orderedSame
+                                Button {
+                                    accentColorHex = option.hex
+                                } label: {
+                                    Circle()
+                                        .fill(option.color)
+                                        .frame(width: 40, height: 40)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(isSelected ? Color.white : Color.white.opacity(0.3), lineWidth: isSelected ? 3 : 1)
+                                        )
+                                        .overlay {
+                                            Image(systemName: "checkmark")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.white)
+                                                .opacity(isSelected ? 1 : 0)
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(option.name)
+                                .accessibilityValue(isSelected ? "Selected" : "Tap to select")
+                            }
+                        }
+                        ColorPicker("Custom Color", selection: accentColorBinding, supportsOpacity: false)
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Accent color changes apply instantly across the app.")
+                }
+
                 // About
                 Section("About") {
                     infoRow("Version", "1.0.0")
@@ -182,6 +259,24 @@ struct SettingsView: View {
         }
     }
     
+    private var notificationStatusText: String {
+        switch notificationManager.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return "Authorized"
+        case .denied:
+            return "Denied"
+        case .notDetermined:
+            return "Not Set"
+        @unknown default:
+            return "Unknown"
+        }
+    }
+
+    private func openNotificationSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+
     private func infoRow(_ label: String, _ value: String) -> some View {
         HStack {
             Text(label)

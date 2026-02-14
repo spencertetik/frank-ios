@@ -67,7 +67,7 @@ struct CalendarView: View {
 
             Image(systemName: "calendar.badge.plus")
                 .font(.system(size: 56))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.accent)
 
             Text("Calendar Access")
                 .font(.title2.weight(.bold))
@@ -89,7 +89,7 @@ struct CalendarView: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.orange)
+            .tint(Theme.accent)
             .padding(.horizontal, 40)
 
             Spacer()
@@ -140,7 +140,7 @@ struct EventRow: View {
     
     private var color: Color {
         if let cg = event.calendarColor { return Color(cgColor: cg) }
-        return .orange
+        return Theme.accent
     }
     
     /// Extract meeting URL from event URL, location, or notes
@@ -264,7 +264,7 @@ struct EventRow: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "person.2")
                                         .font(.caption)
-                                        .foregroundStyle(.orange)
+                                        .foregroundStyle(Theme.accent)
                                         .frame(width: 20)
                                     Text("\(event.attendees.count) attendee\(event.attendees.count == 1 ? "" : "s")")
                                         .font(.caption.weight(.medium))
@@ -289,7 +289,7 @@ struct EventRow: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "note.text")
                                         .font(.caption)
-                                        .foregroundStyle(.orange)
+                                        .foregroundStyle(Theme.accent)
                                         .frame(width: 20)
                                     Text("Notes")
                                         .font(.caption.weight(.medium))
@@ -316,7 +316,7 @@ struct EventRow: View {
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.accent)
                 .frame(width: 20)
             Text(text)
                 .font(.subheadline)
@@ -348,7 +348,7 @@ struct CalendarFilterSheet: View {
                     } label: {
                         HStack(spacing: 12) {
                             Circle()
-                                .fill(cal.color != nil ? Color(cgColor: cal.color!) : .orange)
+                                .fill(cal.color != nil ? Color(cgColor: cal.color!) : Theme.accent)
                                 .frame(width: 12, height: 12)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(cal.title)

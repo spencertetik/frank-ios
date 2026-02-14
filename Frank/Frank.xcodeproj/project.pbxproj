@@ -371,8 +371,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_AllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSAppTransportSecurity_AllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_AllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Frank needs calendar access to show your upcoming events from all accounts, including work.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Frank connects to your OpenClaw gateway on the local network.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -421,8 +421,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_AllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSAppTransportSecurity_AllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_AllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Frank needs calendar access to show your upcoming events from all accounts, including work.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Frank connects to your OpenClaw gateway on the local network.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;

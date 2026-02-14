@@ -127,7 +127,7 @@ struct DashboardView: View {
             HStack {
                 Label("LIVE STATUS", systemImage: "bolt.fill")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.accent)
                 Spacer()
                 Text(uptimeText)
                     .font(.caption)
@@ -142,7 +142,7 @@ struct DashboardView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "cpu")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.accent)
                     Text("\(gateway.activeSubAgentCount) sub-agent\(gateway.activeSubAgentCount == 1 ? "" : "s") running")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -152,7 +152,7 @@ struct DashboardView: View {
             HStack(spacing: 6) {
                 Image(systemName: "brain")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.accent)
                 Text(gateway.modelName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -228,7 +228,7 @@ struct DashboardView: View {
             HStack {
                 Label(label, systemImage: icon)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.accent)
                 Spacer()
                 
                 if hasSteps && !isEditing.wrappedValue {
@@ -247,7 +247,7 @@ struct DashboardView: View {
                 } label: {
                     Text(isEditing.wrappedValue ? "Save" : (text.isEmpty ? "Set" : "Edit"))
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.accent)
                 }
             }
             
@@ -300,7 +300,7 @@ struct DashboardView: View {
                                 .fill(Color.white.opacity(0.08))
                                 .frame(height: 3)
                             RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.orange)
+                                .fill(Theme.accent)
                                 .frame(width: allSteps.isEmpty ? 0 : geo.size.width * CGFloat(completedCount) / CGFloat(allSteps.count), height: 3)
                         }
                     }
@@ -317,7 +317,7 @@ struct DashboardView: View {
                             } label: {
                                 HStack(spacing: 8) {
                                     Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(isDone ? .orange : .gray)
+                                        .foregroundStyle(isDone ? Theme.accent : .gray)
                                         .font(.body)
                                     Text(step)
                                         .font(.subheadline)
@@ -364,7 +364,7 @@ struct DashboardView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(nextEventCountdown)
                         .font(.title2.bold())
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.accent)
                         .contentTransition(.numericText())
                     Image(systemName: "chevron.right")
                         .font(.caption)

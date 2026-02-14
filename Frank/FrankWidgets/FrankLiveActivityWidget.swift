@@ -27,7 +27,7 @@ struct FrankLiveActivityWidget: Widget {
                     Text(context.state.compactTask)
                         .font(.caption2)
                         .lineLimit(1)
-                        .foregroundColor(.orange)
+                        .foregroundColor(Theme.accent)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.uptimeString)
@@ -57,7 +57,7 @@ struct FrankLiveActivityWidget: Widget {
                 // Trailing compact view (task snippet)
                 Text(context.state.compactTask)
                     .font(.caption2)
-                    .foregroundColor(.orange)
+                    .foregroundColor(Theme.accent)
                     .lineLimit(1)
             } minimal: {
                 // Minimal view
@@ -124,7 +124,7 @@ struct DynamicIslandExpandedView: View {
                 }
                 Text("Frank")
                     .font(.caption2.weight(.semibold))
-                    .foregroundColor(.orange)
+                    .foregroundColor(Theme.accent)
             }
             
             Spacer()
@@ -138,7 +138,7 @@ struct DynamicIslandExpandedView: View {
                 if context.state.subAgentCount > 0 {
                     Text("\(context.state.subAgentCount) agents")
                         .font(.caption2)
-                        .foregroundColor(.orange)
+                        .foregroundColor(Theme.accent)
                 }
             }
             .frame(maxWidth: .infinity)

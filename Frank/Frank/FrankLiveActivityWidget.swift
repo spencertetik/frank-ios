@@ -25,7 +25,7 @@ struct FrankLiveActivityWidget: Widget {
                         }
                         Text("Frank")
                             .font(.caption2.weight(.semibold))
-                            .foregroundColor(.orange)
+                            .foregroundColor(Theme.accent)
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -36,7 +36,7 @@ struct FrankLiveActivityWidget: Widget {
                         if context.state.subAgentCount > 0 {
                             Text("\(context.state.subAgentCount) agents")
                                 .font(.caption2)
-                                .foregroundColor(.orange)
+                                .foregroundColor(Theme.accent)
                         }
                     }
                 }
@@ -63,7 +63,7 @@ struct FrankLiveActivityWidget: Widget {
                 // Trailing compact view (task snippet)
                 Text(context.state.compactTask)
                     .font(.caption2)
-                    .foregroundColor(.orange)
+                    .foregroundColor(Theme.accent)
                     .lineLimit(1)
             } minimal: {
                 // Minimal view
@@ -87,7 +87,7 @@ struct LockScreenActivityView: View {
                         .font(.title2)
                     Text("Frank")
                         .font(.headline.weight(.semibold))
-                        .foregroundColor(.orange)
+                        .foregroundColor(Theme.accent)
                 }
                 Spacer()
                 HStack(spacing: 4) {
@@ -117,7 +117,7 @@ struct LockScreenActivityView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "cpu")
                         .font(.caption)
-                        .foregroundColor(.orange)
+                        .foregroundColor(Theme.accent)
                     Text(context.state.modelName)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -130,7 +130,7 @@ struct LockScreenActivityView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "brain.head.profile")
                             .font(.caption)
-                            .foregroundColor(.orange)
+                            .foregroundColor(Theme.accent)
                         Text("\(context.state.subAgentCount)")
                             .font(.caption.weight(.medium))
                     }
@@ -142,7 +142,7 @@ struct LockScreenActivityView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
                         .font(.caption)
-                        .foregroundColor(.orange)
+                        .foregroundColor(Theme.accent)
                     Text(context.state.uptimeString)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -172,7 +172,7 @@ struct DynamicIslandExpandedView: View {
                 }
                 Text("Frank")
                     .font(.caption2.weight(.semibold))
-                    .foregroundColor(.orange)
+                    .foregroundColor(Theme.accent)
             }
             
             Spacer()
@@ -186,7 +186,7 @@ struct DynamicIslandExpandedView: View {
                 if context.state.subAgentCount > 0 {
                     Text("\(context.state.subAgentCount) agents")
                         .font(.caption2)
-                        .foregroundColor(.orange)
+                        .foregroundColor(Theme.accent)
                 }
             }
             .frame(maxWidth: .infinity)

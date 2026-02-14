@@ -23,7 +23,7 @@ final class NotificationManager {
         hasRequestedPermissions = true
         
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge, .provisional])
+            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
             authorizationStatus = granted ? .authorized : .denied
         } catch {
             print("Notification permission request failed: \(error)")

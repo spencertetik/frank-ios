@@ -66,7 +66,7 @@ struct QuickCommandDetailView: View {
             Spacer()
             if cache.isStale(commandType) && result?.isLoading != true {
                 Image(systemName: "clock.badge.exclamationmark")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.accent)
                     .font(.caption)
             }
         }
@@ -94,7 +94,7 @@ struct QuickCommandDetailView: View {
                 .foregroundStyle(.secondary)
             Button("Refresh", action: refresh)
                 .buttonStyle(.borderedProminent)
-                .tint(.orange)
+                .tint(Theme.accent)
                 .disabled(!gateway.isConnected)
         }
         .frame(maxWidth: .infinity)
