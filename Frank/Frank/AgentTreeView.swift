@@ -1,8 +1,32 @@
 import SwiftUI
 
+// MARK: - Specialist Definition
+
+private struct Specialist: Identifiable {
+    let id: String
+    let name: String
+    let emoji: String
+    let role: String
+    let modelKeywords: [String]
+    let modelDisplay: String
+    
+    static let roster: [Specialist] = [
+        Specialist(id: "rex", name: "Rex", emoji: "💻", role: "Lead Developer", modelKeywords: ["codex", "gpt-5.1"], modelDisplay: "Codex / GPT-5.1"),
+        Specialist(id: "iris", name: "Iris", emoji: "👁", role: "Visual QA", modelKeywords: ["kimi"], modelDisplay: "Kimi"),
+        Specialist(id: "scout", name: "Scout", emoji: "🔍", role: "Intel & Search", modelKeywords: ["grok"], modelDisplay: "Grok"),
+        Specialist(id: "dash", name: "Dash", emoji: "⚡", role: "Fast Ops", modelKeywords: ["sonnet"], modelDisplay: "Sonnet"),
+    ]
+    
+    func matches(_ model: String) -> Bool {
+        let lower = model.lowercased()
+        return modelKeywords.contains { lower.contains($0) }
+    }
+}
+
+// MARK: - Main View
+
 struct AgentTreeView: View {
     @Environment(GatewayClient.self) private var gateway
-    @State private var animateHierarchy = false
     
     private var sessions: [GatewayClient.ActiveSession] {
         if !gateway.activeSessionsSnapshot.isEmpty {
@@ -11,14 +35,64 @@ struct AgentTreeView: View {
         return gateway.activeAgents.map { GatewayClient.ActiveSession(agentInfo: $0) }
     }
     
+    /// Match sessions to specialists; returns (matched dict, unmatched array)
+    private var sessionMapping: ([String: [GatewayClient.ActiveSession]], [GatewayClient.ActiveSession]) {
+        var matched: [String: [GatewayClient.ActiveSession]] = [:]
+        var unmatched: [GatewayClient.ActiveSession] = []
+        for session in sessions {
+            if let spec = Specialist.roster.first(where: { $0.matches(session.model) }) {
+                matched[spec.id, default: []].append(session)
+            } else {
+                // Skip sessions matching opus (that's Frank)
+                if !session.model.lowercased().contains("opus") {
+                    unmatched.append(session)
+                }
+            }
+        }
+        return (matched, unmatched)
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    hierarchy
+                VStack(spacing: 0) {
+                    // Frank card
+                    frankCard
+                    
+                    // Connecting line down from Frank
+                    Rectangle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 2, height: 28)
+                    
+                    // Horizontal branch line
+                    HStack(spacing: 0) {
+                        Spacer()
+                        Rectangle()
+                            .fill(Color.white.opacity(0.12))
+                            .frame(height: 2)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 40)
+                    
+                    // Specialists 2x2 grid
+                    let mapping = sessionMapping
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        ForEach(Specialist.roster) { spec in
+                            let matched = mapping.0[spec.id] ?? []
+                            let active = matched.first(where: \.isActive)
+                            SpecialistCard(specialist: spec, activeSession: active, allMatched: matched)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+                    
+                    // Other sessions
+                    let others = mapping.1
+                    if !others.isEmpty {
+                        otherSessionsSection(others)
+                    }
                 }
-                .padding()
+                .padding(.vertical)
             }
             .background(Theme.bgPrimary.ignoresSafeArea())
             .navigationTitle("Agents")
@@ -36,308 +110,174 @@ struct AgentTreeView: View {
             }
             .refreshable { gateway.fetchActiveSessions() }
         }
-        .task {
-            gateway.fetchActiveSessions()
-        }
+        .task { gateway.fetchActiveSessions() }
         .animation(.spring(response: 0.6, dampingFraction: 0.85), value: sessions.map { $0.key })
     }
     
-    // MARK: - Header
+    // MARK: - Frank Card
     
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Agent Hierarchy")
-                .font(.system(.largeTitle, design: .rounded).weight(.bold))
-            Text("Frank orchestrates a network of specialized workers. Track who's online, their models, and what they're handling in real-time.")
-                .font(.callout)
+    private var frankCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("🧠 Frank")
+                    .font(.title2.weight(.bold))
+                Circle()
+                    .fill(gateway.isConnected ? .green : .gray)
+                    .frame(width: 10, height: 10)
+                Spacer()
+                Text("Project Manager")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Theme.cardBackground.opacity(0.7), in: Capsule())
+            }
+            Text(gateway.modelName.isEmpty ? "Opus" : gateway.modelName)
+                .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
-        }
-    }
-    
-    // MARK: - Tree
-    
-    private var hierarchy: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            AgentNodeCard(
-                name: "Frank",
-                model: gateway.modelName,
-                detail: gateway.currentTask,
-                role: roleInfo(for: gateway.modelName),
-                isActive: gateway.isConnected,
-                subtitle: gateway.isConnected ? "Online" : "Offline",
-                lastUpdated: gateway.sessionUptime > 0 ? Date().addingTimeInterval(-gateway.sessionUptime) : nil,
-                isRoot: true
-            )
-            .accessibilityLabel("Frank main agent, currently \(gateway.isConnected ? "online" : "offline")")
-            
-            // Sort: active first, then by most recent
-            let sorted = sessions.sorted { a, b in
-                if a.isActive != b.isActive { return a.isActive }
-                return a.updatedAt > b.updatedAt
-            }
-            
-            if sorted.isEmpty {
-                emptyState
-            } else {
-                let activeSessions = sorted
-                let activeCount = activeSessions.filter(\.isActive).count
-                
-                HStack(spacing: 12) {
-                    Label("\(activeCount) active", systemImage: "circle.fill")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.green)
-                    Label("\(activeSessions.count - activeCount) idle", systemImage: "circle.fill")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.gray)
-                }
-                .padding(.leading, 28)
-                VStack(alignment: .leading, spacing: 12) {
-                    Rectangle()
-                        .fill(Color.white.opacity(0.12))
-                        .frame(width: 2, height: 18)
-                        .padding(.leading, 24)
-                        .padding(.bottom, 4)
-                    ForEach(Array(activeSessions.enumerated()), id: \.element.id) { index, session in
-                        AgentBranchRow(
-                            session: session,
-                            isLast: index == activeSessions.count - 1,
-                            role: roleInfo(for: session.model)
-                        )
-                        .opacity(session.isActive ? 1.0 : 0.5)
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-    
-    private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("No agents working", systemImage: "moon.zzz")
-                .font(.headline)
-            Text("Frank is idle for now. As new sub-agents spin up, they will appear here with their current assignments.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-        }
-        .padding()
-        .glassCard(cornerRadius: 14)
-        .padding(.leading, 8)
-    }
-    
-    // MARK: - Role Helpers
-    
-    private func roleInfo(for model: String) -> AgentRole {
-        let lower = model.lowercased()
-        if lower.contains("opus") {
-            return AgentRole(label: "Project Manager", emoji: "🧠")
-        } else if lower.contains("codex") || lower.contains("gpt-5.1") {
-            return AgentRole(label: "Coding Agent", emoji: "💻")
-        } else if lower.contains("kimi") {
-            return AgentRole(label: "Vision", emoji: "👁")
-        } else if lower.contains("grok") {
-            return AgentRole(label: "Search & Intel", emoji: "🔍")
-        } else if lower.contains("sonnet") {
-            return AgentRole(label: "Fast Worker", emoji: "⚡")
-        } else {
-            return AgentRole(label: "Agent", emoji: "🤖")
-        }
-    }
-}
-
-// MARK: - Components
-
-private struct AgentRole {
-    let label: String
-    let emoji: String
-}
-
-private struct AgentNodeCard: View {
-    let name: String
-    let model: String
-    let detail: String
-    let role: AgentRole
-    let isActive: Bool
-    var subtitle: String?
-    var lastUpdated: Date?
-    var isRoot: Bool = false
-    
-    private var statusColor: Color { isActive ? .green : .gray }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(name)
-                            .font(.title3.weight(.semibold))
-                        statusDot
-                        Spacer()
-                        roleBadge
-                    }
-                    Text(model.isEmpty ? "Unknown model" : model)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-            }
-            Text(detail.isEmpty ? "Idle" : detail)
+            Text(gateway.currentTask.isEmpty ? (gateway.isConnected ? "Online — Coordinating" : "Offline") : gateway.currentTask)
                 .font(.callout)
                 .foregroundStyle(Theme.textPrimary)
-                .lineLimit(3)
-            if let subtitle {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(isActive ? .green.opacity(0.8) : Theme.textTertiary)
-            }
-            if let lastUpdated {
-                Text("Updated \(relativeString(since: lastUpdated))")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textTertiary)
-            }
+                .lineLimit(2)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [Theme.cardBackground.opacity(isRoot ? 0.8 : 0.5), Theme.cardBackground.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .clipShape(RoundedRectangle(cornerRadius: isRoot ? 20 : 16))
+            LinearGradient(colors: [Theme.cardBackground.opacity(0.8), Theme.cardBackground.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .clipShape(RoundedRectangle(cornerRadius: 20))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: isRoot ? 20 : 16)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
         )
+        .padding(.horizontal)
     }
     
-    private var statusDot: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 10, height: 10)
-            Text(isActive ? "Active" : "Idle")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(statusColor)
+    // MARK: - Other Sessions
+    
+    private func otherSessionsSection(_ others: [GatewayClient.ActiveSession]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Other Sessions")
+                .font(.headline)
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.horizontal)
+                .padding(.top, 20)
+            
+            ForEach(others, id: \.id) { session in
+                OtherSessionRow(session: session)
+                    .padding(.horizontal)
+            }
         }
-    }
-    
-    private var roleBadge: some View {
-        HStack(spacing: 6) {
-            Text(role.emoji)
-            Text(role.label)
-                .font(.caption.weight(.semibold))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Theme.cardBackground.opacity(0.7), in: Capsule())
-    }
-    
-    private func relativeString(since date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
-private struct AgentBranchRow: View {
-    let session: GatewayClient.ActiveSession
-    let isLast: Bool
-    let role: AgentRole
+// MARK: - Specialist Card
+
+private struct SpecialistCard: View {
+    let specialist: Specialist
+    let activeSession: GatewayClient.ActiveSession?
+    let allMatched: [GatewayClient.ActiveSession]
     
-    private var lineColor: Color { Color.white.opacity(0.15) }
+    private var isActive: Bool { activeSession != nil }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            BranchConnector(isLast: isLast, lineColor: lineColor)
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text("\(session.kindEmoji) \(session.label)")
-                                .font(.title3.weight(.semibold))
-                                .lineLimit(1)
-                            Spacer()
-                            Text(session.kindLabel)
-                                .font(.caption2.weight(.semibold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(kindColor(session.kind).opacity(0.2), in: Capsule())
-                                .foregroundStyle(kindColor(session.kind))
-                        }
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(session.isActive ? .green : .gray)
-                                .frame(width: 8, height: 8)
-                            Text(session.model)
-                                .font(.caption)
-                                .foregroundStyle(Theme.textSecondary)
-                            Text("·")
-                                .foregroundStyle(Theme.textTertiary)
-                            Text(session.tokenDisplay)
-                                .font(.caption)
-                                .foregroundStyle(Theme.textTertiary)
-                        }
-                    }
+        VStack(alignment: .leading, spacing: 8) {
+            // Vertical connector line from top
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(width: 2, height: 10)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                // Header
+                HStack(spacing: 6) {
+                    Text(specialist.emoji)
+                        .font(.title3)
+                    Text(specialist.name)
+                        .font(.headline.weight(.semibold))
+                    Circle()
+                        .fill(isActive ? .green : Color.gray.opacity(0.4))
+                        .frame(width: 8, height: 8)
+                    Spacer()
                 }
-                if !session.lastMessage.isEmpty {
-                    Text(session.lastMessage)
-                        .font(.callout)
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(2)
-                }
-                Text(relativeString(since: session.updatedAt))
+                
+                // Role badge
+                Text(specialist.role)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(isActive ? Color.white.opacity(0.1) : Color.white.opacity(0.05), in: Capsule())
+                    .foregroundStyle(isActive ? Theme.textPrimary : Theme.textTertiary)
+                
+                // Model
+                Text(specialist.modelDisplay)
                     .font(.caption2)
                     .foregroundStyle(Theme.textTertiary)
+                
+                // Status / task
+                if let session = activeSession {
+                    Text(session.lastMessage.isEmpty ? "Working..." : session.lastMessage)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(2)
+                    Text(session.tokenDisplay)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.textTertiary)
+                } else {
+                    Text("Standing by")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textTertiary)
+                        .italic()
+                }
             }
-            .padding()
+            .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                LinearGradient(colors: [Theme.cardBackground.opacity(0.5), Theme.cardBackground.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                LinearGradient(
+                    colors: [Theme.cardBackground.opacity(isActive ? 0.6 : 0.3), Theme.cardBackground.opacity(isActive ? 0.3 : 0.15)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.white.opacity(isActive ? 0.1 : 0.05), lineWidth: 1)
             )
+            .opacity(isActive ? 1.0 : 0.55)
         }
-        .padding(.leading, 8)
-    }
-    
-    private func kindColor(_ kind: GatewayClient.SessionKind) -> Color {
-        switch kind {
-        case .main: return .blue
-        case .subagent: return .orange
-        case .cron: return .purple
-        case .group: return .cyan
-        case .other: return .gray
-        }
-    }
-    
-    private func relativeString(since date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
-private struct BranchConnector: View {
-    let isLast: Bool
-    let lineColor: Color
+// MARK: - Other Session Row
+
+private struct OtherSessionRow: View {
+    let session: GatewayClient.ActiveSession
     
     var body: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(lineColor)
-                .frame(width: 2, height: 10)
+        HStack(spacing: 10) {
             Circle()
-                .fill(lineColor)
-                .frame(width: 10, height: 10)
-            Rectangle()
-                .fill(lineColor)
-                .frame(width: 2)
-                .frame(maxHeight: .infinity)
-                .opacity(isLast ? 0 : 1)
-            Spacer(minLength: 0)
+                .fill(session.isActive ? .green : .gray)
+                .frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(session.kindEmoji) \(session.label)")
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(session.model)
+                    Text("·")
+                    Text(session.tokenDisplay)
+                }
+                .font(.caption2)
+                .foregroundStyle(Theme.textTertiary)
+            }
+            Spacer()
         }
-        .frame(width: 18)
+        .padding(10)
+        .glassCard(cornerRadius: 12)
+        .opacity(session.isActive ? 1.0 : 0.5)
     }
 }
+
+// MARK: - Existing Extensions (kept)
 
 extension GatewayClient.ActiveSession {
     init(agentInfo: GatewayClient.AgentInfo) {

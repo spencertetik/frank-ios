@@ -884,19 +884,41 @@ final class GatewayClient {
     // MARK: - Active Sessions
     
     func fetchActiveSessions() {
+        guard isConnected else {
+            print("[AgentTree] Not connected, skipping fetch")
+            return
+        }
+        print("[AgentTree] Sending sessions.list request...")
         sendRequest(method: "sessions.list", params: [
-            "limit": 20,
-            "includeLastMessage": true
+            "limit": 50,
+            "messageLimit": 1
         ]) { [weak self] response in
             Task { @MainActor in
                 guard let self else { return }
-                guard
-                    let data = response,
-                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                else {
+                guard let data = response else {
+                    print("[AgentTree] No response data (nil)")
                     self.activeSessions = []
                     return
                 }
+                
+                let responseString = String(data: data, encoding: .utf8) ?? "nil"
+                print("[AgentTree] Raw response (\(data.count) bytes): \(String(responseString.prefix(800)))")
+                
+                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    print("[AgentTree] Failed to parse JSON")
+                    self.activeSessions = []
+                    return
+                }
+                
+                // Check for error response
+                if let error = json["error"] as? String {
+                    print("[AgentTree] Gateway error: \(error)")
+                    self.activeSessions = []
+                    return
+                }
+                
+                print("[AgentTree] JSON keys: \(Array(json.keys))")
+                
                 // Try multiple response shapes: payload.sessions, result.sessions, or top-level sessions
                 let sessions: [[String: Any]]? =
                     (json["payload"] as? [String: Any])?["sessions"] as? [[String: Any]]
@@ -904,13 +926,23 @@ final class GatewayClient {
                     ?? json["sessions"] as? [[String: Any]]
                 
                 guard let sessions else {
-                    print("[AgentTree] No sessions found in response. Full JSON: \(String(data: data, encoding: .utf8)?.prefix(500) ?? "nil")")
+                    print("[AgentTree] No 'sessions' array found in response keys: \(Array(json.keys))")
                     self.activeSessions = []
                     return
                 }
+                
                 print("[AgentTree] Found \(sessions.count) sessions")
-                let mapped = sessions.compactMap { self.decodeActiveSession(from: $0) }
-                    .sorted(by: { $0.updatedAt > $1.updatedAt })
+                var mapped: [ActiveSession] = []
+                for (i, dict) in sessions.enumerated() {
+                    if let session = self.decodeActiveSession(from: dict) {
+                        mapped.append(session)
+                    } else {
+                        let key = dict["key"] as? String ?? "unknown"
+                        print("[AgentTree] Failed to decode session \(i): key=\(key), keys=\(Array(dict.keys))")
+                    }
+                }
+                mapped.sort(by: { $0.updatedAt > $1.updatedAt })
+                print("[AgentTree] Parsed \(mapped.count)/\(sessions.count) sessions")
                 self.activeSessions = mapped
             }
         }
@@ -982,12 +1014,21 @@ final class GatewayClient {
             let seconds = updated > 1_000_000_000 ? Double(updated) / 1000 : Double(updated)
             return Date(timeIntervalSince1970: seconds)
         }
-        if let updatedString = dictionary["updatedAt"] as? String,
-           let date = iso8601Formatter.date(from: updatedString) {
-            return date
+        if let updatedString = dictionary["updatedAt"] as? String {
+            if let numeric = Double(updatedString) {
+                let seconds = numeric > 1_000_000_000_000 ? numeric / 1000 : numeric
+                return Date(timeIntervalSince1970: seconds)
+            }
+            if let date = iso8601Formatter.date(from: updatedString) {
+                return date
+            }
         }
         if let lastMessage = dictionary["lastMessageAt"] as? Double {
             let seconds = lastMessage > 1_000_000_000_000 ? lastMessage / 1000 : lastMessage
+            return Date(timeIntervalSince1970: seconds)
+        }
+        if let lastMessage = dictionary["lastMessageAt"] as? Int {
+            let seconds = lastMessage > 1_000_000_000 ? Double(lastMessage) / 1000 : Double(lastMessage)
             return Date(timeIntervalSince1970: seconds)
         }
         return nil
