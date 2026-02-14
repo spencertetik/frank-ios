@@ -68,8 +68,9 @@ struct CachedQuickCommandButton: View {
             VStack(spacing: Theme.paddingSmall) {
                 // Top row with emoji and stale indicator
                 HStack {
-                    Text(commandType.emoji)
-                        .font(.title2)
+                    Image(systemName: commandType.icon)
+                        .font(.title3)
+                        .foregroundStyle(Theme.accent)
                     
                     Spacer()
                     

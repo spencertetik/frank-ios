@@ -73,8 +73,9 @@ struct QuickCommandDetailView: View {
     
     private var header: some View {
         HStack {
-            Text(commandType.emoji)
-                .font(.title)
+            Image(systemName: commandType.icon)
+                .font(.title2)
+                .foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text(commandType.title)
                     .font(.title3.weight(.semibold))
