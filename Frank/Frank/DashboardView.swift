@@ -79,6 +79,8 @@ struct DashboardView: View {
                     }
                     
                     liveStatusCard
+                    usageStatsCard
+                    ClaudeUsageCard()
                     goalsSection
                     
                     if let next = calendar.upcomingEvents.first {
@@ -100,24 +102,80 @@ struct DashboardView: View {
     // MARK: - Header
     
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Frank 🦞")
-                    .font(.largeTitle.bold())
-                Text("Your AI Operator")
-                    .font(.subheadline)
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    // Logo mark
+                    HStack(spacing: 10) {
+                        // Claw logo from app icon
+                        Image("AppIconImage")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 48, height: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(.white.opacity(0.1), lineWidth: 1)
+                            )
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("FRANK")
+                                .font(.system(size: 28, weight: .black, design: .default))
+                                .tracking(2)
+                            
+                            Text("AI OPERATOR")
+                                .font(.system(size: 11, weight: .semibold, design: .default))
+                                .tracking(3)
+                                .foregroundStyle(Theme.accent)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                // Status badge
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(gateway.isConnected ? .green : .red)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: gateway.isConnected ? .green.opacity(0.6) : .red.opacity(0.6), radius: 4)
+                    Text(gateway.isConnected ? "ONLINE" : "OFFLINE")
+                        .font(.system(size: 10, weight: .bold, design: .default))
+                        .tracking(1.5)
+                        .foregroundStyle(gateway.isConnected ? .green : .red)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.08), lineWidth: 1))
+            }
+            
+            // Tagline bar
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(Theme.accent)
+                    .frame(height: 2)
+                
+                Text(gateway.isConnected ? statusTagline : "Waiting for connection")
+                    .font(.system(size: 11, weight: .medium, design: .default))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                
+                Rectangle()
+                    .fill(Theme.accent.opacity(0.3))
+                    .frame(height: 2)
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                Circle()
-                    .fill(gateway.isConnected ? .green : .red)
-                    .frame(width: 12, height: 12)
-                Text(gateway.isConnected ? "Online" : "Offline")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(gateway.isConnected ? .green : .red)
-            }
+            .padding(.top, 14)
         }
+    }
+    
+    private var statusTagline: String {
+        let model = gateway.modelName.isEmpty ? "Unknown" : gateway.modelName
+        let agents = gateway.activeSubAgentCount
+        if agents > 0 {
+            return "\(model) · \(agents) agent\(agents == 1 ? "" : "s") active · \(uptimeText) uptime"
+        }
+        return "\(model) · \(uptimeText) uptime"
     }
     
     // MARK: - Live Status
@@ -161,6 +219,134 @@ struct DashboardView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: 14)
+    }
+    
+    // MARK: - Usage Stats
+    
+    private func formatTokens(_ count: Int) -> String {
+        if count < 1_000 { return "\(count)" }
+        if count < 1_000_000 {
+            let k = Double(count) / 1_000
+            return k >= 10 ? "\(Int(k))K" : String(format: "%.1fK", k)
+        }
+        let m = Double(count) / 1_000_000
+        return m >= 10 ? "\(Int(m))M" : String(format: "%.1fM", m)
+    }
+    
+    private func contextColor(_ fraction: Double) -> Color {
+        if fraction < 0.6 { return .green }
+        if fraction < 0.8 { return .yellow }
+        return .red
+    }
+    
+    private var usageStatsCard: some View {
+        let fraction = gateway.contextMax > 0 ? Double(gateway.contextUsed) / Double(gateway.contextMax) : 0
+        
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("USAGE", systemImage: "chart.bar.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                Spacer()
+                // Model pill
+                Text(gateway.modelName)
+                    .font(.caption2.weight(.medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Theme.accent.opacity(0.15), in: Capsule())
+                    .foregroundStyle(Theme.accent)
+            }
+            
+            // Context meter
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Context")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(formatTokens(gateway.contextUsed)) / \(formatTokens(gateway.contextMax))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(fraction * 100))%")
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(contextColor(fraction))
+                }
+                
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.white.opacity(0.08))
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(contextColor(fraction))
+                            .frame(width: max(0, geo.size.width * fraction))
+                    }
+                }
+                .frame(height: 6)
+            }
+            
+            // Token counters
+            HStack(spacing: 10) {
+                tokenBox(label: "Tokens In", value: gateway.tokensIn, icon: "arrow.down.circle")
+                tokenBox(label: "Tokens Out", value: gateway.tokensOut, icon: "arrow.up.circle")
+            }
+            
+            // Bottom row: uptime, sub-agents, compactions
+            HStack(spacing: 16) {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(uptimeText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                if gateway.activeSubAgentCount > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cpu")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.accent)
+                        Text("\(gateway.activeSubAgentCount) agent\(gateway.activeSubAgentCount == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                if gateway.compactions > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.trianglehead.2.clockwise")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text("\(gateway.compactions) compaction\(gateway.compactions == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Spacer()
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(cornerRadius: 14)
+    }
+    
+    private func tokenBox(label: String, value: Int, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Text(formatTokens(value))
+                .font(.title3.weight(.semibold).monospacedDigit())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
     }
     
     // MARK: - Goals

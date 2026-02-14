@@ -11,6 +11,7 @@ struct FrankApp: App {
     @State private var calendarManager: CalendarManager
     @State private var notificationManager: NotificationManager
     @State private var quickCommandCache: QuickCommandCache
+    @State private var claudeUsageService: ClaudeUsageService
     @AppStorage(AccentColorManager.storageKey) private var accentColorHex = AccentColorManager.defaultHex
     @Environment(\.scenePhase) private var scenePhase
 
@@ -22,12 +23,14 @@ struct FrankApp: App {
         let calendarManager = CalendarManager()
         let notificationManager = NotificationManager()
         let quickCommandCache = QuickCommandCache()
+        let claudeUsageService = ClaudeUsageService()
 
         _statusModel = State(initialValue: statusModel)
         _gateway = State(initialValue: gateway)
         _calendarManager = State(initialValue: calendarManager)
         _notificationManager = State(initialValue: notificationManager)
         _quickCommandCache = State(initialValue: quickCommandCache)
+        _claudeUsageService = State(initialValue: claudeUsageService)
 
         appDelegate.configurePushHandling(
             onTokenUpdate: { token in
@@ -51,6 +54,7 @@ struct FrankApp: App {
                 .environment(calendarManager)
                 .environment(notificationManager)
                 .environment(quickCommandCache)
+                .environment(claudeUsageService)
                 .tint(accentColor)
                 .onAppear {
                     setupApp()
@@ -97,6 +101,14 @@ struct FrankApp: App {
         if !host.isEmpty && !token.isEmpty && autoConnect {
             gateway.configure(host: host, port: port > 0 ? port : 18789, token: token, useTailscaleServe: useTailscale)
             gateway.connect()
+            
+            // Retry once after 2s if first connect fails (common after fresh install)
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                if !gateway.isConnected {
+                    gateway.reconnectIfNeeded()
+                }
+            }
         }
     }
     

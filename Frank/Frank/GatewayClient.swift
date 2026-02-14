@@ -10,6 +10,7 @@ final class GatewayClient {
     var isConnected = false
     private var disconnectGraceTask: Task<Void, Never>?
     private var suppressDisconnectHaptic = false
+    private var lastHapticTime: Date = .distantPast
     var currentTask = "Waiting for instructions"
     var activeAgents: [AgentInfo] = []
     @ObservationIgnored
@@ -27,6 +28,13 @@ final class GatewayClient {
     var lastHeartbeat: Date?
     var connectionError: String?
     var sessionKey: String = "agent:main:main"
+    
+    // Usage stats
+    var contextUsed: Int = 0
+    var contextMax: Int = 200_000
+    var tokensIn: Int = 0
+    var tokensOut: Int = 0
+    var compactions: Int = 0
     
     // Thinking state — separated from final messages
     var isThinking = false
@@ -100,12 +108,19 @@ final class GatewayClient {
         authToken = token
     }
     
+    private var isConnecting = false
+    private var thinkingStartTime: Date?
+    
     func connect() {
         guard let url = gatewayURL else {
             connectionError = "No gateway URL configured"
             return
         }
         
+        // Don't interrupt an in-progress connection attempt
+        if isConnecting { return }
+        
+        isConnecting = true
         disconnect()
         connectionError = nil
         challengeNonce = nil
@@ -122,6 +137,7 @@ final class GatewayClient {
             .replacingOccurrences(of: "ws://", with: "http://")
         request.setValue(origin, forHTTPHeaderField: "Origin")
         webSocket = session?.webSocketTask(with: request)
+        webSocket?.maximumMessageSize = 16 * 1024 * 1024  // 16MB max frame size
         webSocket?.resume()
         
         receiveMessage()
@@ -129,6 +145,7 @@ final class GatewayClient {
     }
     
     func disconnect() {
+        isConnecting = false
         reconnectTask?.cancel()
         pingTask?.cancel()
         uptimeTask?.cancel()
@@ -146,8 +163,9 @@ final class GatewayClient {
         // End Live Activity
         endLiveActivity()
         
-        // Add haptic feedback for disconnection (unless suppressed during auto-reconnect)
-        if !suppressDisconnectHaptic {
+        // Add haptic feedback for disconnection (throttled, max once per 30s)
+        if !suppressDisconnectHaptic && Date().timeIntervalSince(lastHapticTime) > 30 {
+            lastHapticTime = Date()
             let warning = UINotificationFeedbackGenerator()
             warning.notificationOccurred(.warning)
         }
@@ -221,7 +239,10 @@ final class GatewayClient {
                     self.connectionError = nil
                     self.startPing()
                     self.startUptimeTimer()
-                    self.addSystemMessage("Connected to OpenClaw gateway")
+                    // Only show connect message on first connection, not reconnects
+                    if self.messages.isEmpty {
+                        self.addSystemMessage("Connected to OpenClaw gateway")
+                    }
                     self.syncToSharedState()
                     // Load chat history
                     self.loadChatHistory()
@@ -232,10 +253,13 @@ final class GatewayClient {
                     self.startLiveActivity()
                     self.transmitStoredPushToken()
                     
+                    self.isConnecting = false
+                    
                     // Add haptic feedback for connection
                     let success = UINotificationFeedbackGenerator()
                     success.notificationOccurred(.success)
                 } else {
+                    self.isConnecting = false
                     var errMsg = "Connect handshake failed"
                     if let data = response,
                        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -314,6 +338,11 @@ final class GatewayClient {
                     ))
                 }
                 self.messages = loaded
+                // Clear thinking if history loaded with a new assistant message
+                if loaded.last?.isFromUser == false {
+                    self.isThinking = false
+                    self.thinkingText = ""
+                }
                 self.syncToSharedState()
             }
         }
@@ -414,6 +443,12 @@ final class GatewayClient {
         let msgId = UUID().uuidString
         let msg = ChatMessage(id: msgId, text: text, isFromUser: true, timestamp: Date(), imageData: jpegData)
         messages.append(msg)
+        
+        // Show thinking indicator immediately
+        isThinking = true
+        thinkingStartTime = Date()
+        thinkingText = ""
+        
         syncToSharedState()
         
         // Send as multipart content with image
@@ -434,6 +469,12 @@ final class GatewayClient {
         let msgId = UUID().uuidString
         let msg = ChatMessage(id: msgId, text: text, isFromUser: true, timestamp: Date())
         messages.append(msg)
+        
+        // Show thinking indicator immediately
+        isThinking = true
+        thinkingStartTime = Date()
+        thinkingText = ""
+        
         syncToSharedState()
         
         sendRequest(method: "chat.send", params: [
@@ -486,9 +527,25 @@ final class GatewayClient {
     // MARK: - Live Activities
     
     private func startLiveActivity() {
-        // Only start if ActivityKit is available and we're not already running an activity
-        guard ActivityAuthorizationInfo().areActivitiesEnabled,
-              currentActivity == nil else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        
+        // End ALL existing Frank activities first to prevent duplicates
+        let existingActivities = Activity<FrankActivityAttributes>.activities
+        if !existingActivities.isEmpty {
+            for activity in existingActivities {
+                if activity.id == currentActivity?.id {
+                    // Already tracking this one — just update it
+                    updateLiveActivity()
+                    return
+                }
+                // Stale activity from previous session — end it
+                Task {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+        }
+        
+        guard currentActivity == nil else { return }
         
         let attributes = FrankActivityAttributes()
         let contentState = FrankActivityAttributes.ContentState(
@@ -675,15 +732,30 @@ final class GatewayClient {
                 if quickCommandCallback != nil {
                     quickCommandStreamText = text
                 } else {
+                    if !isThinking {
+                        thinkingStartTime = Date()
+                    }
                     isThinking = true
                     thinkingText = text
                 }
             }
             
         case "final":
-            // Stream complete — clear thinking
-            isThinking = false
-            thinkingText = ""
+            // Stream complete — ensure thinking shows for at least 1.5s
+            let minThinkingDuration: TimeInterval = 1.5
+            let elapsed = Date().timeIntervalSince(thinkingStartTime ?? .distantPast)
+            let remaining = max(0, minThinkingDuration - elapsed)
+            
+            if remaining > 0 {
+                Task {
+                    try? await Task.sleep(for: .seconds(remaining))
+                    self.isThinking = false
+                    self.thinkingText = ""
+                }
+            } else {
+                isThinking = false
+                thinkingText = ""
+            }
             
             if let cb = quickCommandCallback {
                 quickCommandCallback = nil
@@ -783,8 +855,11 @@ final class GatewayClient {
                 self.isConnected = false
                 self.connectedAt = nil
                 self.sessionUptime = 0
-                let warning = UINotificationFeedbackGenerator()
-                warning.notificationOccurred(.warning)
+                if Date().timeIntervalSince(self.lastHapticTime) > 30 {
+                    self.lastHapticTime = Date()
+                    let warning = UINotificationFeedbackGenerator()
+                    warning.notificationOccurred(.warning)
+                }
                 self.syncToSharedState()
                 self.endLiveActivity()
             }
@@ -806,6 +881,7 @@ final class GatewayClient {
         var request = URLRequest(url: url)
         request.setValue(url.absoluteString, forHTTPHeaderField: "Origin")
         webSocket = session?.webSocketTask(with: request)
+        webSocket?.maximumMessageSize = 16 * 1024 * 1024  // 16MB max frame size
         webSocket?.resume()
         
         receiveMessage()
@@ -858,6 +934,35 @@ final class GatewayClient {
         } else if let count = dictionary["activeAgentsCount"] as? Int {
             activeSubAgentCount = count
         }
+        
+        // Usage stats — map from actual gateway fields
+        // Gateway sends: totalTokens (context used), contextTokens (context max)
+        if let used = dictionary["totalTokens"] as? Int {
+            contextUsed = used
+        }
+        if let max = dictionary["contextTokens"] as? Int, max > 0 {
+            contextMax = max
+        }
+        
+        // Also try alternate field names
+        if let v = dictionary["contextUsed"] as? Int { contextUsed = v }
+        if let v = dictionary["contextMax"] as? Int { contextMax = v }
+        if let ctx = dictionary["context"] as? [String: Any] {
+            contextUsed = (ctx["used"] as? Int) ?? (ctx["current"] as? Int) ?? contextUsed
+            contextMax = (ctx["max"] as? Int) ?? (ctx["limit"] as? Int) ?? contextMax
+        }
+        
+        // Token I/O if available
+        tokensIn = (dictionary["tokensIn"] as? Int)
+            ?? (dictionary["inputTokens"] as? Int)
+            ?? tokensIn
+        tokensOut = (dictionary["tokensOut"] as? Int)
+            ?? (dictionary["outputTokens"] as? Int)
+            ?? tokensOut
+        
+        compactions = (dictionary["compactions"] as? Int)
+            ?? (dictionary["compactionCount"] as? Int)
+            ?? compactions
         
         // Update Live Activity and shared state for widgets
         updateLiveActivity()

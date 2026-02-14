@@ -375,11 +375,10 @@ struct ChatView: View {
     }
 }
 
-// MARK: - Thinking Bubble (collapsible thinking → final)
+// MARK: - Thinking Bubble (clean dots only)
 
 struct ThinkingBubble: View {
     let text: String
-    @State private var isExpanded = true
     
     var body: some View {
         HStack {
@@ -388,36 +387,13 @@ struct ThinkingBubble: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Theme.accent)
                 
-                // Thinking header — always visible
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        ThinkingDots()
-                        Text("Thinking...")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .buttonStyle(.plain)
-                
-                // Expandable thinking content
-                if isExpanded && !text.isEmpty {
-                    Text(text.suffix(500))
-                        .font(.caption)
+                HStack(spacing: 8) {
+                    ThinkingDots()
+                    Text("Thinking...")
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
-                        .lineLimit(8)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-                        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
                 }
+                .padding(.vertical, 4)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

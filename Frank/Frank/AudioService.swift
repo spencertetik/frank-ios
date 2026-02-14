@@ -27,7 +27,8 @@ final class AudioService: NSObject {
     // MARK: - API Key
     
     var openAIKey: String {
-        UserDefaults.standard.string(forKey: "openAIAPIKey") ?? ""
+        UserDefaults.standard.string(forKey: "openAIAPIKey").flatMap { $0.isEmpty ? nil : $0 }
+            ?? Secrets.openAIKey
     }
     
     // MARK: - Recording

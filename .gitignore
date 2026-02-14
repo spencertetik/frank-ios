@@ -23,3 +23,4 @@ build/
 
 # Secrets (don't commit tokens)
 # Gateway tokens are configured in-app via Settings
+Frank/Frank/Secrets.swift
