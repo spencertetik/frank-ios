@@ -16,8 +16,11 @@ struct SettingsView: View {
     @AppStorage("autoConnect") private var autoConnect = true
     @AppStorage("useTailscale") private var useTailscale = false
     @AppStorage(AccentColorManager.storageKey) private var accentColorHex = AccentColorManager.defaultHex
+    @AppStorage("openAIAPIKey") private var openAIKey = ""
+    @AppStorage("autoPlayVoiceResponses") private var autoPlayVoice = false
     
     @State private var showingToken = false
+    @State private var showingOpenAIKey = false
     
     private var activeHost: String { useTailscale ? tailscaleHost : host }
     private var accentColorBinding: Binding<Color> {
@@ -186,6 +189,32 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Calendar")
+                }
+                
+                // Voice
+                Section {
+                    HStack {
+                        if showingOpenAIKey {
+                            TextField("OpenAI API Key", text: $openAIKey)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                        } else {
+                            SecureField("OpenAI API Key", text: $openAIKey)
+                        }
+                        Button {
+                            showingOpenAIKey.toggle()
+                        } label: {
+                            Image(systemName: showingOpenAIKey ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    Toggle("Auto-play Voice Responses", isOn: $autoPlayVoice)
+                } header: {
+                    Text("Voice")
+                } footer: {
+                    Text("OpenAI key is used for voice input (Whisper) and text-to-speech.")
                 }
                 
                 // Appearance

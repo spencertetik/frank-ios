@@ -270,6 +270,11 @@ final class GatewayClient {
     
     // MARK: - Chat History
     
+    /// Prompts used by quick commands — filtered from chat history
+    private static let quickCommandPrompts: Set<String> = Set(
+        QuickCommandCache.CommandType.allCases.map(\.prompt)
+    )
+    
     private func loadChatHistory() {
         sendRequest(method: "chat.history", params: [
             "sessionKey": sessionKey,
@@ -282,19 +287,31 @@ final class GatewayClient {
                       let msgs = payload["messages"] as? [[String: Any]] else { return }
                 
                 var loaded: [ChatMessage] = []
+                var skipNextAssistant = false
                 for msg in msgs {
                     let role = msg["role"] as? String ?? ""
                     let content = msg["content"]
                     let ts = msg["timestamp"] as? Double ?? Date().timeIntervalSince1970 * 1000
                     let text = self.extractText(from: content)
-                    if !text.isEmpty {
-                        loaded.append(ChatMessage(
-                            id: UUID().uuidString,
-                            text: text,
-                            isFromUser: role == "user",
-                            timestamp: Date(timeIntervalSince1970: ts / 1000)
-                        ))
+                    if text.isEmpty { continue }
+                    
+                    // Filter out quick command prompts and their responses
+                    if role == "user" && Self.quickCommandPrompts.contains(text) {
+                        skipNextAssistant = true
+                        continue
                     }
+                    if skipNextAssistant && role == "assistant" {
+                        skipNextAssistant = false
+                        continue
+                    }
+                    skipNextAssistant = false
+                    
+                    loaded.append(ChatMessage(
+                        id: UUID().uuidString,
+                        text: text,
+                        isFromUser: role == "user",
+                        timestamp: Date(timeIntervalSince1970: ts / 1000)
+                    ))
                 }
                 self.messages = loaded
                 self.syncToSharedState()
@@ -654,11 +671,12 @@ final class GatewayClient {
             let message = payload["message"]
             let text = extractText(from: message)
             if !text.isEmpty {
-                isThinking = true
-                thinkingText = text
-                // Also accumulate for quick commands
+                // Accumulate for quick commands without showing thinking bubble
                 if quickCommandCallback != nil {
-                    quickCommandStreamText = text  // delta sends full accumulated text, not incremental
+                    quickCommandStreamText = text
+                } else {
+                    isThinking = true
+                    thinkingText = text
                 }
             }
             

@@ -375,6 +375,7 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_AllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Frank needs calendar access to show your upcoming events from all accounts, including work.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Frank connects to your OpenClaw gateway on the local network.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Frank uses the microphone for voice input to transcribe your speech.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -425,6 +426,7 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_AllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Frank needs calendar access to show your upcoming events from all accounts, including work.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Frank connects to your OpenClaw gateway on the local network.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Frank uses the microphone for voice input to transcribe your speech.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

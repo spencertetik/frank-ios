@@ -5,6 +5,7 @@ struct QuickCommandDetailView: View {
     let commandType: QuickCommandCache.CommandType
     @Environment(QuickCommandCache.self) private var cache
     @Environment(GatewayClient.self) private var gateway
+    @State private var audioService = AudioService.shared
     
     private var result: QuickCommandCache.CachedResult? {
         cache.result(for: commandType)
@@ -33,14 +34,32 @@ struct QuickCommandDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(action: refresh) {
-                    if result?.isLoading == true {
-                        ProgressView().scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
+                HStack(spacing: 16) {
+                    // Speaker button
+                    Button {
+                        if let content = result?.content, !content.isEmpty {
+                            Task { await audioService.speak(text: content, messageId: "qc-\(commandType.rawValue)") }
+                        }
+                    } label: {
+                        if audioService.isGeneratingTTS && audioService.playingMessageId == "qc-\(commandType.rawValue)" {
+                            ProgressView().scaleEffect(0.8)
+                        } else {
+                            Image(systemName: audioService.playingMessageId == "qc-\(commandType.rawValue)" && audioService.isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2")
+                                .foregroundStyle(audioService.playingMessageId == "qc-\(commandType.rawValue)" ? Theme.accent : .secondary)
+                        }
                     }
+                    .disabled(result?.content == nil || result?.isLoading == true)
+                    
+                    // Refresh button
+                    Button(action: refresh) {
+                        if result?.isLoading == true {
+                            ProgressView().scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .disabled(result?.isLoading == true || !gateway.isConnected)
                 }
-                .disabled(result?.isLoading == true || !gateway.isConnected)
             }
         }
         .refreshable { refresh() }

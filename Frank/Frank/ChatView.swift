@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import Combine
 import PhotosUI
+import AVFoundation
 
 struct ChatView: View {
     var scrollTrigger: Int = 0
@@ -14,6 +15,9 @@ struct ChatView: View {
     @State private var pendingImage: UIImage?
     @State private var showImageSource = false
     @State private var showCamera = false
+    @State private var audioService = AudioService.shared
+    @State private var micPulse = false
+    @State private var autoSpeak = false
     
     var body: some View {
         NavigationStack {
@@ -31,6 +35,19 @@ struct ChatView: View {
             .navigationTitle("Chat")
             .background(Theme.bgPrimary)
             .scrollDismissesKeyboard(.interactively)
+            .overlay(alignment: .top) {
+                if let error = audioService.lastError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                        .padding(10)
+                        .background(.red.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
+                        .padding(.top, 50)
+                        .onTapGesture { audioService.lastError = nil }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.easeInOut, value: audioService.lastError)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     connectionIndicator
@@ -57,19 +74,34 @@ struct ChatView: View {
     
     private var suggestionChips: some View {
         FlowLayout(spacing: 8) {
-            SuggestionChip(text: "Morning Report", icon: "sun.max") {
+            SuggestionChip(text: "Morning Report", icon: "sun.max", speakerEnabled: true) {
+                gateway.sendChat("Give me my morning report")
+            } speakerAction: {
+                autoSpeak = true
                 gateway.sendChat("Give me my morning report")
             }
-            SuggestionChip(text: "Check Email", icon: "envelope") {
+            SuggestionChip(text: "Check Email", icon: "envelope", speakerEnabled: true) {
+                gateway.sendChat("Check my email")
+            } speakerAction: {
+                autoSpeak = true
                 gateway.sendChat("Check my email")
             }
-            SuggestionChip(text: "Weather", icon: "cloud.sun") {
+            SuggestionChip(text: "Weather", icon: "cloud.sun", speakerEnabled: true) {
+                gateway.sendChat("What's the weather in Perry, OK?")
+            } speakerAction: {
+                autoSpeak = true
                 gateway.sendChat("What's the weather in Perry, OK?")
             }
-            SuggestionChip(text: "Calendar", icon: "calendar") {
+            SuggestionChip(text: "Calendar", icon: "calendar", speakerEnabled: true) {
+                gateway.sendChat("What's on my calendar today?")
+            } speakerAction: {
+                autoSpeak = true
                 gateway.sendChat("What's on my calendar today?")
             }
-            SuggestionChip(text: "Project Status", icon: "folder") {
+            SuggestionChip(text: "Project Status", icon: "folder", speakerEnabled: true) {
+                gateway.sendChat("Give me a project status update")
+            } speakerAction: {
+                autoSpeak = true
                 gateway.sendChat("Give me a project status update")
             }
         }
@@ -85,7 +117,7 @@ struct ChatView: View {
                     ForEach(groupMessagesByDate(gateway.messages), id: \.date) { group in
                         DateSeparatorView(date: group.date)
                         ForEach(group.messages) { message in
-                            ChatBubble(message: message)
+                            ChatBubble(message: message, audioService: audioService)
                                 .id(message.id)
                         }
                     }
@@ -100,6 +132,7 @@ struct ChatView: View {
                 }
                 .padding()
             }
+            .defaultScrollAnchor(.bottom)
             .onAppear {
                 scrollToBottom(proxy)
             }
@@ -110,10 +143,20 @@ struct ChatView: View {
                 withAnimation(.easeOut(duration: 0.2)) {
                     scrollToBottom(proxy)
                 }
+                // Auto-speak last assistant message when it's done streaming
+                if autoSpeak, let last = gateway.messages.last, !last.isFromUser, !last.isStreaming, !last.text.isEmpty {
+                    autoSpeak = false
+                    Task { await audioService.speak(text: last.text, messageId: last.id) }
+                }
             }
             .onChange(of: gateway.isThinking) {
                 withAnimation(.easeOut(duration: 0.2)) {
                     scrollToBottom(proxy)
+                }
+                // Auto-speak when thinking ends (response finalized)
+                if !gateway.isThinking && autoSpeak, let last = gateway.messages.last, !last.isFromUser, !last.text.isEmpty {
+                    autoSpeak = false
+                    Task { await audioService.speak(text: last.text, messageId: last.id) }
                 }
             }
             .onChange(of: gateway.thinkingText) {
@@ -168,7 +211,7 @@ struct ChatView: View {
                 .background(Color.white.opacity(0.04))
             }
             
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 // Image attachment button
                 Menu {
                     Button {
@@ -180,8 +223,10 @@ struct ChatView: View {
                     // Photo library handled by PhotosPicker below
                 } label: {
                     Image(systemName: pendingImage != nil ? "photo.fill" : "photo")
-                        .font(.title3)
-                        .foregroundStyle(pendingImage != nil ? Theme.accent : .secondary)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(pendingImage != nil ? Theme.accent : .white.opacity(0.5))
+                        .frame(width: 36, height: 36)
+                        .background(.white.opacity(0.08), in: Circle())
                 }
                 .overlay {
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
@@ -191,20 +236,76 @@ struct ChatView: View {
                 }
                 
                 TextField("Message Frank...", text: $draft, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .lineLimit(1...5)
                     .focused($isFocused)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22)
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 22)
+                                    .stroke(.white.opacity(0.1), lineWidth: 1)
+                            )
+                    )
                     .onSubmit { send() }
                 
+                // Mic button
+                Button {
+                    Task { await toggleRecording() }
+                } label: {
+                    Image(systemName: audioService.isRecording ? "mic.fill" : "mic")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(audioService.isRecording ? .red : .white.opacity(0.5))
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(audioService.isRecording ? .red.opacity(0.15) : .white.opacity(0.08))
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(.red, lineWidth: audioService.isRecording ? 2 : 0)
+                                .scaleEffect(micPulse ? 1.3 : 1.0)
+                                .opacity(micPulse ? 0 : 1)
+                                .animation(audioService.isRecording ? .easeInOut(duration: 0.8).repeatForever(autoreverses: false) : .default, value: micPulse)
+                        )
+                }
+                .onChange(of: audioService.isRecording) {
+                    micPulse = audioService.isRecording
+                }
+                
+                if audioService.isTranscribing {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 36, height: 36)
+                }
+                
                 Button(action: send) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(canSend ? Theme.accent : .gray)
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(canSend ? .white : .white.opacity(0.3))
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(canSend ? Theme.accent : .white.opacity(0.08))
+                        )
                 }
                 .disabled(!canSend)
+                .animation(.easeInOut(duration: 0.2), value: canSend)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 28)
+                    .fill(Theme.bgSecondary.opacity(0.6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28)
+                            .stroke(.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
         }
         .onChange(of: selectedPhoto) {
             Task {
@@ -235,6 +336,19 @@ struct ChatView: View {
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasImage = pendingImage != nil
         return (hasText || hasImage) && gateway.isConnected
+    }
+    
+    private func toggleRecording() async {
+        if audioService.isRecording {
+            guard let url = audioService.stopRecording() else { return }
+            if let text = await audioService.transcribe(audioURL: url) {
+                draft += (draft.isEmpty ? "" : " ") + text
+            }
+        } else {
+            let granted = await audioService.requestMicPermission()
+            guard granted else { return }
+            audioService.startRecording()
+        }
     }
     
     private func send() {
@@ -338,6 +452,7 @@ struct ThinkingDots: View {
 
 struct ChatBubble: View {
     let message: GatewayClient.ChatMessage
+    var audioService: AudioService
     
     private static let markdownOptions = AttributedString.MarkdownParsingOptions(
         interpretedSyntax: .full
@@ -349,9 +464,29 @@ struct ChatBubble: View {
             
             VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 4) {
                 if !message.isFromUser {
-                    Text("Frank")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Theme.accent)
+                    HStack(spacing: 6) {
+                        Text("Frank")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                        
+                        // Speaker button for assistant messages
+                        Button {
+                            Task { await audioService.speak(text: message.text, messageId: message.id) }
+                        } label: {
+                            Group {
+                                if audioService.isGeneratingTTS && audioService.playingMessageId == message.id {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                } else {
+                                    Image(systemName: audioService.playingMessageId == message.id && audioService.isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2")
+                                }
+                            }
+                            .font(.caption)
+                            .frame(width: 20, height: 20)
+                            .foregroundStyle(audioService.playingMessageId == message.id ? Theme.accent : .white.opacity(0.4))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 
                 bubbleContent
@@ -361,6 +496,13 @@ struct ChatBubble: View {
                         }
                         ShareLink(item: message.text) {
                             Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        if !message.isFromUser {
+                            Button {
+                                Task { await audioService.speak(text: message.text, messageId: message.id) }
+                            } label: {
+                                Label("Read Aloud", systemImage: "speaker.wave.2")
+                            }
                         }
                     }
                 
@@ -444,20 +586,38 @@ struct DateSeparatorView: View {
 struct SuggestionChip: View {
     let text: String
     let icon: String
+    var speakerEnabled: Bool = false
     let action: () -> Void
+    var speakerAction: (() -> Void)?
     
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).font(.caption)
-                Text(text).font(.subheadline)
+        HStack(spacing: 0) {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Image(systemName: icon).font(.caption)
+                    Text(text).font(.subheadline)
+                }
+                .padding(.leading, 14)
+                .padding(.trailing, speakerEnabled ? 8 : 14)
+                .padding(.vertical, 8)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.thinMaterial, in: Capsule())
-            .foregroundStyle(Theme.accent)
+            .buttonStyle(.plain)
+            
+            if speakerEnabled {
+                Button {
+                    speakerAction?()
+                } label: {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.caption)
+                        .padding(.trailing, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
+        .background(.thinMaterial, in: Capsule())
+        .foregroundStyle(Theme.accent)
     }
 }
 
