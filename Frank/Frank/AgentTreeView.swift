@@ -11,7 +11,7 @@ private struct Specialist: Identifiable {
     let modelDisplay: String
     
     static let roster: [Specialist] = [
-        Specialist(id: "rex", name: "Rex", emoji: "💻", role: "Lead Developer", modelKeywords: ["codex", "gpt-5.1"], modelDisplay: "Codex / GPT-5.1"),
+        Specialist(id: "rex", name: "Rex", emoji: "💻", role: "Lead Developer", modelKeywords: ["codex", "gpt-5.1", "gpt-5.3"], modelDisplay: "Codex / GPT-5.3"),
         Specialist(id: "iris", name: "Iris", emoji: "👁", role: "Visual QA", modelKeywords: ["kimi"], modelDisplay: "Kimi"),
         Specialist(id: "scout", name: "Scout", emoji: "🔍", role: "Intel & Search", modelKeywords: ["grok"], modelDisplay: "Grok"),
         Specialist(id: "dash", name: "Dash", emoji: "⚡", role: "Fast Ops", modelKeywords: ["sonnet"], modelDisplay: "Sonnet"),

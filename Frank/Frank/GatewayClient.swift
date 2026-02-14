@@ -548,6 +548,7 @@ final class GatewayClient {
         guard currentActivity == nil else { return }
         
         let attributes = FrankActivityAttributes()
+        let usage = SharedStateWriter.currentUsageSnapshot()
         let contentState = FrankActivityAttributes.ContentState(
             frankStatus: isConnected ? "Online" : "Offline",
             currentTask: currentTask,
@@ -556,7 +557,11 @@ final class GatewayClient {
             isConnected: isConnected,
             subAgentCount: activeSubAgentCount,
             uptime: sessionUptime,
-            lastUpdated: Date()
+            lastUpdated: Date(),
+            claudeSessionPercent: usage.claudeSessionPercent,
+            claudeSessionResetAt: usage.claudeSessionResetAt,
+            claudeWeeklyPercent: usage.claudeWeeklyPercent,
+            codexSessionPercent: usage.codexSessionPercent
         )
         
         do {
@@ -573,6 +578,7 @@ final class GatewayClient {
     private func updateLiveActivity() {
         guard let activity = currentActivity else { return }
         
+        let usage = SharedStateWriter.currentUsageSnapshot()
         let contentState = FrankActivityAttributes.ContentState(
             frankStatus: isConnected ? "Online" : "Offline",
             currentTask: currentTask,
@@ -581,7 +587,11 @@ final class GatewayClient {
             isConnected: isConnected,
             subAgentCount: activeSubAgentCount,
             uptime: sessionUptime,
-            lastUpdated: Date()
+            lastUpdated: Date(),
+            claudeSessionPercent: usage.claudeSessionPercent,
+            claudeSessionResetAt: usage.claudeSessionResetAt,
+            claudeWeeklyPercent: usage.claudeWeeklyPercent,
+            codexSessionPercent: usage.codexSessionPercent
         )
         
         Task {
@@ -596,6 +606,7 @@ final class GatewayClient {
         guard let activity = currentActivity else { return }
         
         Task {
+            let usage = SharedStateWriter.currentUsageSnapshot()
             await activity.end(.init(
                 state: FrankActivityAttributes.ContentState(
                     frankStatus: "Offline",
@@ -605,7 +616,11 @@ final class GatewayClient {
                     isConnected: false,
                     subAgentCount: 0,
                     uptime: sessionUptime,
-                    lastUpdated: Date()
+                    lastUpdated: Date(),
+                    claudeSessionPercent: usage.claudeSessionPercent,
+                    claudeSessionResetAt: usage.claudeSessionResetAt,
+                    claudeWeeklyPercent: usage.claudeWeeklyPercent,
+                    codexSessionPercent: usage.codexSessionPercent
                 ),
                 staleDate: Date()
             ))

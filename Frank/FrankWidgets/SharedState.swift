@@ -10,6 +10,12 @@ struct SharedState {
         UserDefaults(suiteName: suiteName)
     }
     
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions.insert(.withFractionalSeconds)
+        return formatter
+    }()
+    
     // MARK: - Keys
     private enum Keys {
         static let isConnected = "frank.isConnected"
@@ -21,6 +27,20 @@ struct SharedState {
         static let messagesToday = "frank.messagesToday"
         static let lastUpdated = "frank.lastUpdated"
         static let upcomingEvents = "frank.upcomingEvents"
+        
+        static let claudeSessionPercent = "frank.claudeSessionPercent"
+        static let claudeSessionResetAt = "frank.claudeSessionResetAt"
+        static let claudeWeeklyPercent = "frank.claudeWeeklyPercent"
+        static let claudeWeeklyResetAt = "frank.claudeWeeklyResetAt"
+        static let claudeSonnetPercent = "frank.claudeSonnetPercent"
+        static let claudeExtraUsagePercent = "frank.claudeExtraUsagePercent"
+        static let claudeExtraUsageDollars = "frank.claudeExtraUsageDollars"
+        static let claudeExtraUsageLimit = "frank.claudeExtraUsageLimit"
+        static let codexSessionPercent = "frank.codexSessionPercent"
+        static let codexWeeklyPercent = "frank.codexWeeklyPercent"
+        static let apiSpendToday = "frank.apiSpendToday"
+        static let apiSpend7Day = "frank.apiSpend7Day"
+        static let apiSpend30Day = "frank.apiSpend30Day"
     }
     
     // MARK: - Write (from main app)
@@ -96,5 +116,67 @@ struct SharedState {
             return []
         }
         return events
+    }
+    
+    // MARK: - Usage Metrics
+    
+    static var claudeSessionPercent: Double {
+        defaults?.double(forKey: Keys.claudeSessionPercent) ?? 0
+    }
+    
+    static var claudeSessionResetAt: Date? {
+        guard
+            let isoString = defaults?.string(forKey: Keys.claudeSessionResetAt),
+            !isoString.isEmpty
+        else { return nil }
+        return isoFormatter.date(from: isoString)
+    }
+    
+    static var claudeWeeklyPercent: Double {
+        defaults?.double(forKey: Keys.claudeWeeklyPercent) ?? 0
+    }
+    
+    static var claudeWeeklyResetAt: Date? {
+        guard
+            let isoString = defaults?.string(forKey: Keys.claudeWeeklyResetAt),
+            !isoString.isEmpty
+        else { return nil }
+        return isoFormatter.date(from: isoString)
+    }
+    
+    static var claudeSonnetPercent: Double {
+        defaults?.double(forKey: Keys.claudeSonnetPercent) ?? 0
+    }
+    
+    static var claudeExtraUsagePercent: Double {
+        defaults?.double(forKey: Keys.claudeExtraUsagePercent) ?? 0
+    }
+    
+    static var claudeExtraUsageDollars: Double {
+        defaults?.double(forKey: Keys.claudeExtraUsageDollars) ?? 0
+    }
+    
+    static var claudeExtraUsageLimit: Double {
+        defaults?.double(forKey: Keys.claudeExtraUsageLimit) ?? 0
+    }
+    
+    static var codexSessionPercent: Double {
+        defaults?.double(forKey: Keys.codexSessionPercent) ?? 0
+    }
+    
+    static var codexWeeklyPercent: Double {
+        defaults?.double(forKey: Keys.codexWeeklyPercent) ?? 0
+    }
+    
+    static var apiSpendToday: Double {
+        defaults?.double(forKey: Keys.apiSpendToday) ?? 0
+    }
+    
+    static var apiSpend7Day: Double {
+        defaults?.double(forKey: Keys.apiSpend7Day) ?? 0
+    }
+    
+    static var apiSpend30Day: Double {
+        defaults?.double(forKey: Keys.apiSpend30Day) ?? 0
     }
 }

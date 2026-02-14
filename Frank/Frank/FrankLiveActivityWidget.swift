@@ -51,24 +51,20 @@ struct FrankLiveActivityWidget: Widget {
                     }
                 }
             } compactLeading: {
-                // Leading compact view (🦞 + connection dot)
-                HStack(spacing: 2) {
-                    Text(context.state.statusEmoji)
-                        .font(.caption2)
-                    Circle()
-                        .fill(context.state.isConnected ? .green : .red)
-                        .frame(width: 6, height: 6)
-                }
+                // Leading compact view (connection dot)
+                Circle()
+                    .fill(context.state.isConnected ? .green : .red)
+                    .frame(width: 8, height: 8)
             } compactTrailing: {
-                // Trailing compact view (task snippet)
-                Text(context.state.compactTask)
-                    .font(.caption2)
-                    .foregroundColor(Theme.accent)
-                    .lineLimit(1)
+                // Trailing compact view (session percentage)
+                Text(context.state.claudeSessionDisplay)
+                    .font(.caption2.weight(.semibold))
+                    .monospacedDigit()
             } minimal: {
                 // Minimal view
-                Text(context.state.statusEmoji)
-                    .font(.caption2)
+                Circle()
+                    .fill(context.state.isConnected ? .green : .red)
+                    .frame(width: 8, height: 8)
             }
         }
     }

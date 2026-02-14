@@ -12,6 +12,7 @@ struct FrankApp: App {
     @State private var notificationManager: NotificationManager
     @State private var quickCommandCache: QuickCommandCache
     @State private var claudeUsageService: ClaudeUsageService
+    @State private var codexUsageService: CodexUsageService
     @AppStorage(AccentColorManager.storageKey) private var accentColorHex = AccentColorManager.defaultHex
     @Environment(\.scenePhase) private var scenePhase
 
@@ -24,6 +25,7 @@ struct FrankApp: App {
         let notificationManager = NotificationManager()
         let quickCommandCache = QuickCommandCache()
         let claudeUsageService = ClaudeUsageService()
+        let codexUsageService = CodexUsageService()
 
         _statusModel = State(initialValue: statusModel)
         _gateway = State(initialValue: gateway)
@@ -31,6 +33,11 @@ struct FrankApp: App {
         _notificationManager = State(initialValue: notificationManager)
         _quickCommandCache = State(initialValue: quickCommandCache)
         _claudeUsageService = State(initialValue: claudeUsageService)
+        _codexUsageService = State(initialValue: codexUsageService)
+        SharedStateWriter.bindUsageServices(
+            claudeUsageService: claudeUsageService,
+            codexUsageService: codexUsageService
+        )
 
         appDelegate.configurePushHandling(
             onTokenUpdate: { token in
@@ -55,6 +62,7 @@ struct FrankApp: App {
                 .environment(notificationManager)
                 .environment(quickCommandCache)
                 .environment(claudeUsageService)
+                .environment(codexUsageService)
                 .tint(accentColor)
                 .onAppear {
                     setupApp()

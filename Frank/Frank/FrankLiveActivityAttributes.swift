@@ -22,6 +22,14 @@ struct FrankActivityAttributes: ActivityAttributes {
         var uptime: TimeInterval
         /// Timestamp of the last update
         var lastUpdated: Date
+        /// Claude session utilization percent (0-100)
+        var claudeSessionPercent: Double
+        /// When the Claude session resets
+        var claudeSessionResetAt: Date?
+        /// Claude weekly utilization percent
+        var claudeWeeklyPercent: Double
+        /// Codex session utilization percent
+        var codexSessionPercent: Double
     }
     
     /// Static data that doesn't change during the activity
@@ -47,22 +55,23 @@ extension FrankActivityAttributes.ContentState {
     
     /// Truncated task string for compact views
     var compactTask: String {
-        if currentTask.count > 25 {
-            return String(currentTask.prefix(22)) + "..."
+        if currentTask.count > 32 {
+            return String(currentTask.prefix(29)) + "…"
         }
         return currentTask
     }
     
-    /// Connection status emoji
-    var connectionEmoji: String {
-        isConnected ? "🟢" : "🔴"
+    /// Formatted Claude session usage string
+    var claudeSessionDisplay: String {
+        "\(Int(claudeSessionPercent.rounded()))%"
     }
     
-    /// Status emoji based on Frank's state
-    var statusEmoji: String {
-        if !isConnected { return "😴" }
-        if subAgentCount > 0 { return "🧠" }
-        if currentTask.lowercased().contains("wait") { return "🤔" }
-        return "🦞"
+    /// Truncated model name for UI
+    var displayModel: String {
+        let parts = modelName.split(separator: "/")
+        if let last = parts.last {
+            return String(last)
+        }
+        return modelName
     }
 }

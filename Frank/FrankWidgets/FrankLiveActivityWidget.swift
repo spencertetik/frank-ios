@@ -9,155 +9,218 @@ struct FrankLiveActivityWidget: Widget {
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: FrankActivityAttributes.self) { context in
-            // Lock screen view
             LockScreenActivityView(context: context)
         } dynamicIsland: { context in
-            // Dynamic Island views
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 4) {
-                        Text("🦞")
-                            .font(.caption2)
-                        Circle()
-                            .fill(context.state.isConnected ? .green : .red)
-                            .frame(width: 5, height: 5)
-                    }
+                    StatusBadge(isConnected: context.state.isConnected)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.compactTask)
-                        .font(.caption2)
-                        .lineLimit(1)
-                        .foregroundColor(Theme.accent)
+                    SessionStack(state: context.state)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.state.uptimeString)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    CodexStack(state: context.state)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack(spacing: 12) {
-                        Label(context.state.modelName.components(separatedBy: "/").last ?? "—", systemImage: "cpu")
-                        if context.state.subAgentCount > 0 {
-                            Label("\(context.state.subAgentCount) agents", systemImage: "brain.head.profile")
-                        }
-                    }
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    BottomInfoRow(state: context.state)
                 }
             } compactLeading: {
-                // Leading compact view (🦞 + connection dot)
-                HStack(spacing: 2) {
-                    Text(context.state.statusEmoji)
-                        .font(.caption2)
-                    Circle()
-                        .fill(context.state.isConnected ? .green : .red)
-                        .frame(width: 6, height: 6)
-                }
+                StatusDot(isConnected: context.state.isConnected)
             } compactTrailing: {
-                // Trailing compact view (task snippet)
-                Text(context.state.compactTask)
-                    .font(.caption2)
-                    .foregroundColor(Theme.accent)
-                    .lineLimit(1)
+                Text(context.state.claudeSessionDisplay)
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
             } minimal: {
-                // Minimal view
-                Text(context.state.statusEmoji)
-                    .font(.caption2)
+                StatusDot(isConnected: context.state.isConnected)
             }
         }
     }
 }
 
-/// Lock screen Live Activity view
+// MARK: - Lock Screen View
+
 struct LockScreenActivityView: View {
     let context: ActivityViewContext<FrankActivityAttributes>
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Left: Frank identity
-            HStack(spacing: 6) {
-                Text("🦞")
-                    .font(.title3)
-                Circle()
-                    .fill(context.state.isConnected ? .green : .red)
-                    .frame(width: 8, height: 8)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                StatusBadge(isConnected: context.state.isConnected)
+                Spacer()
+                Text(resetCountdown(for: context.state.claudeSessionResetAt))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
             
-            // Center: Task
-            VStack(alignment: .leading, spacing: 2) {
-                Text(context.state.currentTask)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-                HStack(spacing: 8) {
-                    Text(context.state.modelName.components(separatedBy: "/").last ?? "—")
-                    if context.state.subAgentCount > 0 {
-                        Text("·")
-                        Text("\(context.state.subAgentCount) agents")
-                    }
-                    Text("·")
-                    Text(context.state.uptimeString)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Session")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(context.state.claudeSessionDisplay)
+                        .font(.headline.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(color(for: context.state.claudeSessionPercent))
                 }
-                .font(.caption2)
-                .foregroundColor(.secondary)
+                ProgressView(value: max(0, min(context.state.claudeSessionPercent / 100, 1)))
+                    .tint(color(for: context.state.claudeSessionPercent))
             }
             
-            Spacer()
+            HStack(spacing: 8) {
+                Text(context.state.displayModel)
+                Text("·")
+                    .foregroundStyle(.secondary)
+                Text("Weekly \(Int(context.state.claudeWeeklyPercent.rounded()))%")
+                if context.state.subAgentCount > 0 {
+                    Text("·")
+                        .foregroundStyle(.secondary)
+                    Label("\(context.state.subAgentCount) agents", systemImage: "person.2.fill")
+                        .font(.caption)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .padding(12)
     }
 }
 
-/// Dynamic Island expanded view
-struct DynamicIslandExpandedView: View {
-    let context: ActivityViewContext<FrankActivityAttributes>
+// MARK: - Dynamic Island sections
+
+struct StatusBadge: View {
+    let isConnected: Bool
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Leading side - Frank status
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text("🦞")
-                        .font(.caption)
-                    Circle()
-                        .fill(context.state.isConnected ? .green : .red)
-                        .frame(width: 6, height: 6)
-                }
-                Text("Frank")
+        HStack(spacing: 6) {
+            Text("FRANK")
+                .font(.caption.weight(.semibold))
+            StatusDot(isConnected: isConnected)
+        }
+        .foregroundStyle(isConnected ? Theme.textPrimary : Theme.error)
+    }
+}
+
+struct StatusDot: View {
+    let isConnected: Bool
+    
+    var body: some View {
+        Circle()
+            .fill(isConnected ? Theme.success : Theme.error)
+            .frame(width: 10, height: 10)
+    }
+}
+
+struct SessionStack: View {
+    let state: FrankActivityAttributes.ContentState
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Session")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ProgressView(value: max(0, min(state.claudeSessionPercent / 100, 1))) {
+                Text(state.claudeSessionDisplay)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(color(for: state.claudeSessionPercent))
+            }
+            .progressViewStyle(.linear)
+            .tint(color(for: state.claudeSessionPercent))
+            
+            HStack {
+                Text("Weekly")
                     .font(.caption2.weight(.semibold))
-                    .foregroundColor(Theme.accent)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(Int(state.claudeWeeklyPercent.rounded()))%")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(color(for: state.claudeWeeklyPercent))
             }
-            
-            Spacer()
-            
-            // Center - Current task (truncated)
-            VStack(alignment: .center, spacing: 2) {
-                Text(context.state.compactTask)
+            ProgressView(value: max(0, min(state.claudeWeeklyPercent / 100, 1)))
+                .progressViewStyle(.linear)
+                .tint(color(for: state.claudeWeeklyPercent))
+        }
+    }
+}
+
+struct CodexStack: View {
+    let state: FrankActivityAttributes.ContentState
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Codex")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            HStack(alignment: .lastTextBaseline) {
+                Text("\(Int(state.codexSessionPercent.rounded()))%")
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(color(for: state.codexSessionPercent))
+                Text("5h")
                     .font(.caption2)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
-                if context.state.subAgentCount > 0 {
-                    Text("\(context.state.subAgentCount) agents")
-                        .font(.caption2)
-                        .foregroundColor(Theme.accent)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            
-            Spacer()
-            
-            // Trailing side - Model and uptime
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(context.state.modelName.components(separatedBy: "/").last ?? context.state.modelName)
-                    .font(.caption2)
-                    .lineLimit(1)
-                Text(context.state.uptimeString)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
+}
+
+struct BottomInfoRow: View {
+    let state: FrankActivityAttributes.ContentState
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Label(state.displayModel, systemImage: "bolt.fill")
+                    .font(.caption2)
+                Text("·")
+                Text(state.uptimeString)
+                    .font(.caption2.monospacedDigit())
+                if state.subAgentCount > 0 {
+                    Text("·")
+                    Label("\(state.subAgentCount) agents", systemImage: "person.2.fill")
+                        .font(.caption2)
+                }
+            }
+            .foregroundStyle(.secondary)
+            
+            Text(state.compactTask)
+                .font(.caption2)
+                .foregroundStyle(Theme.textPrimary)
+        }
+    }
+}
+
+// MARK: - Helpers
+
+private func color(for percent: Double) -> Color {
+    let normalized = percent / 100
+    if normalized < 0.6 { return Theme.success }
+    if normalized < 0.8 { return Theme.warning }
+    return Theme.error
+}
+
+private func resetCountdown(for date: Date?) -> String {
+    guard let date else { return "–" }
+    let interval = Int(date.timeIntervalSinceNow)
+    if interval <= 0 { return "Resets soon" }
+    let minutes = interval / 60
+    if minutes < 60 {
+        return "\(minutes)m"
+    }
+    let hours = minutes / 60
+    let remainingMinutes = minutes % 60
+    if hours < 24 {
+        if remainingMinutes == 0 {
+            return "\(hours)h"
+        }
+        return "\(hours)h \(remainingMinutes)m"
+    }
+    let days = hours / 24
+    let remainingHours = hours % 24
+    if remainingHours == 0 {
+        return "\(days)d"
+    }
+    return "\(days)d \(remainingHours)h"
 }
 
 /// Widget bundle to include all Frank widgets

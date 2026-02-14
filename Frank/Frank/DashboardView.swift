@@ -81,6 +81,7 @@ struct DashboardView: View {
                     liveStatusCard
                     usageStatsCard
                     ClaudeUsageCard()
+                    CodexUsageCard()
                     goalsSection
                     
                     if let next = calendar.upcomingEvents.first {
