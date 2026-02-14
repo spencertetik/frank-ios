@@ -46,13 +46,26 @@ struct FrankApp: App {
     }
     
     private func setupGateway() {
-        let host = UserDefaults.standard.string(forKey: "gatewayHost") ?? "192.168.1.197"
+        // One-time migration: update old Tailscale IP to hostname for Serve mode
+        let migrationKey = "tailscaleMigratedToTailnet_v3"
+        if !UserDefaults.standard.bool(forKey: migrationKey) {
+            // Gateway binds to tailnet IP directly — use ws:// to 100.118.254.15
+            UserDefaults.standard.set("100.118.254.15", forKey: "gatewayHost")
+            UserDefaults.standard.set("spencers-mac-mini.tail6878f.ts.net", forKey: "gatewayHostTailscale")
+            UserDefaults.standard.set(false, forKey: "useTailscale")
+            UserDefaults.standard.set(true, forKey: migrationKey)
+        }
+        
+        let useTailscale = UserDefaults.standard.bool(forKey: "useTailscale")
+        let localHost = UserDefaults.standard.string(forKey: "gatewayHost") ?? "192.168.1.197"
+        let tailscaleHost = UserDefaults.standard.string(forKey: "gatewayHostTailscale") ?? "spencers-mac-mini.tail6878f.ts.net"
+        let host = useTailscale ? tailscaleHost : localHost
         let token = UserDefaults.standard.string(forKey: "gatewayToken") ?? "ed7074d189b4e177ed1979f63b891a27d6f34fc8e67f7063"
         let port = UserDefaults.standard.integer(forKey: "gatewayPort")
         let autoConnect = UserDefaults.standard.object(forKey: "autoConnect") == nil ? true : UserDefaults.standard.bool(forKey: "autoConnect")
         
         if !host.isEmpty && !token.isEmpty && autoConnect {
-            gateway.configure(host: host, port: port > 0 ? port : 18789, token: token)
+            gateway.configure(host: host, port: port > 0 ? port : 18789, token: token, useTailscaleServe: useTailscale)
             gateway.connect()
         }
     }

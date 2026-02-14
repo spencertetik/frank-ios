@@ -6,12 +6,16 @@ struct SettingsView: View {
     @Environment(GatewayClient.self) private var gateway
     @Environment(CalendarManager.self) private var calendarManager
     
-    @AppStorage("gatewayHost") private var host = "192.168.1.197"
+    @AppStorage("gatewayHost") private var host = "100.118.254.15"
+    @AppStorage("gatewayHostTailscale") private var tailscaleHost = "spencers-mac-mini.tail6878f.ts.net"
     @AppStorage("gatewayPort") private var port = 18789
-    @AppStorage("gatewayToken") private var token = ""
+    @AppStorage("gatewayToken") private var token = "ed7074d189b4e177ed1979f63b891a27d6f34fc8e67f7063"
     @AppStorage("autoConnect") private var autoConnect = true
+    @AppStorage("useTailscale") private var useTailscale = false
     
     @State private var showingToken = false
+    
+    private var activeHost: String { useTailscale ? tailscaleHost : host }
     
     var body: some View {
         NavigationStack {
@@ -30,18 +34,37 @@ struct SettingsView: View {
                         }
                     }
                     
-                    TextField("Host", text: $host)
-                        .textContentType(.URL)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+                    Toggle("Use Tailscale (Remote)", isOn: $useTailscale)
+                    
+                    if useTailscale {
+                        TextField("Tailscale Hostname", text: $tailscaleHost)
+                            .textContentType(.URL)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    } else {
+                        TextField("Local IP", text: $host)
+                            .textContentType(.URL)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    }
                     
                     HStack {
-                        Text("Port")
+                        Text("Active Host")
                         Spacer()
-                        TextField("18789", value: $port, format: .number)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
+                        Text(useTailscale ? "wss://\(activeHost)" : "ws://\(activeHost):\(port)")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                    
+                    if !useTailscale {
+                        HStack {
+                            Text("Port")
+                            Spacer()
+                            TextField("18789", value: $port, format: .number)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 80)
+                        }
                     }
                     
                     HStack {
@@ -65,7 +88,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Gateway Connection")
                 } footer: {
-                    Text("Connect to the OpenClaw gateway running on your Mac mini.")
+                    Text(useTailscale ? "Connecting via Tailscale — works from anywhere." : "Connecting via local network — must be on home WiFi.")
                 }
                 
                 Section {
@@ -75,10 +98,10 @@ struct SettingsView: View {
                         }
                     } else {
                         Button("Connect") {
-                            gateway.configure(host: host, port: port, token: token)
+                            gateway.configure(host: activeHost, port: port, token: token, useTailscaleServe: useTailscale)
                             gateway.connect()
                         }
-                        .disabled(host.isEmpty || token.isEmpty)
+                        .disabled(activeHost.isEmpty || token.isEmpty)
                     }
                     
                     if let error = gateway.connectionError {

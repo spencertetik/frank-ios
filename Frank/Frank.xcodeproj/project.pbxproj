@@ -11,9 +11,9 @@
 		F1000000000000000000009 /* FrankWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000004 /* FrankWidgetsBundle.swift */; };
 		F100000000000000000000A /* FrankLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000005 /* FrankLiveActivityWidget.swift */; };
 		F100000000000000000000B /* FrankWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000006 /* FrankWidgets.swift */; };
-		F1000000000000000000020 /* SharedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000021 /* SharedState.swift */; };
 		F1000000000000000000015 /* FrankWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F1000000000000000000001 /* FrankWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F1000000000000000000017 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000018 /* Theme.swift */; };
+		F1000000000000000000020 /* SharedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000021 /* SharedState.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,10 +46,10 @@
 		F1000000000000000000004 /* FrankWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrankWidgetsBundle.swift; sourceTree = "<group>"; };
 		F1000000000000000000005 /* FrankLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrankLiveActivityWidget.swift; sourceTree = "<group>"; };
 		F1000000000000000000006 /* FrankWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrankWidgets.swift; sourceTree = "<group>"; };
-		F1000000000000000000021 /* SharedState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedState.swift; sourceTree = "<group>"; };
 		F1000000000000000000007 /* FrankLiveActivity-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "FrankLiveActivity-Info.plist"; sourceTree = "<group>"; };
 		F1000000000000000000016 /* FrankLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrankLiveActivityAttributes.swift; sourceTree = "<group>"; };
 		F1000000000000000000018 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		F1000000000000000000021 /* SharedState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedState.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -372,6 +372,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSAppTransportSecurity_AllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_AllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Frank needs calendar access to show your upcoming events from all accounts, including work.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Frank connects to your OpenClaw gateway on the local network.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -421,6 +422,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSAppTransportSecurity_AllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_AllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Frank needs calendar access to show your upcoming events from all accounts, including work.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Frank connects to your OpenClaw gateway on the local network.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;

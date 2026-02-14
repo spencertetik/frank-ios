@@ -39,6 +39,7 @@ final class GatewayClient {
     private var quickCommandWatchdog: Task<Void, Never>?
     private var quickCommandStreamText: String = ""
     private let iso8601Formatter = ISO8601DateFormatter()
+    private let sessionDelegate = TailscaleTLSDelegate()
     
     // Live Activity management
     private var currentActivity: Activity<FrankActivityAttributes>?
@@ -61,8 +62,14 @@ final class GatewayClient {
     
     // MARK: - Connection
     
-    func configure(host: String, port: Int = 18789, token: String) {
-        let urlString = "ws://\(host):\(port)"
+    func configure(host: String, port: Int = 18789, token: String, useTailscaleServe: Bool = false) {
+        let urlString: String
+        if useTailscaleServe {
+            // Tailscale Serve proxies HTTPS → local gateway, so use wss:// with no port
+            urlString = "wss://\(host)"
+        } else {
+            urlString = "ws://\(host):\(port)"
+        }
         gatewayURL = URL(string: urlString)
         authToken = token
     }
@@ -79,11 +86,15 @@ final class GatewayClient {
         
         let config = URLSessionConfiguration.default
         config.waitsForConnectivity = true
-        session = URLSession(configuration: config)
+        session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
         
         // Gateway requires an Origin header for WebSocket connections
         var request = URLRequest(url: url)
-        request.setValue(url.absoluteString, forHTTPHeaderField: "Origin")
+        // Use https:// origin for wss:// connections (standard WebSocket behavior)
+        let origin = url.absoluteString
+            .replacingOccurrences(of: "wss://", with: "https://")
+            .replacingOccurrences(of: "ws://", with: "http://")
+        request.setValue(origin, forHTTPHeaderField: "Origin")
         webSocket = session?.webSocketTask(with: request)
         webSocket?.resume()
         
@@ -717,7 +728,7 @@ final class GatewayClient {
         
         let config = URLSessionConfiguration.default
         config.waitsForConnectivity = true
-        session = URLSession(configuration: config)
+        session = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
         
         var request = URLRequest(url: url)
         request.setValue(url.absoluteString, forHTTPHeaderField: "Origin")
@@ -813,5 +824,26 @@ final class GatewayClient {
             let model = (item["model"] as? String) ?? (item["modelName"] as? String)
             return AgentInfo(id: id, name: name, status: status, model: model)
         }
+    }
+}
+
+// MARK: - TLS Delegate for Tailscale Serve certificates
+
+/// Tailscale Serve uses TLS certificates from its own CA which iOS doesn't trust by default.
+/// This delegate accepts certificates for *.ts.net domains specifically.
+final class TailscaleTLSDelegate: NSObject, URLSessionDelegate {
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let serverTrust = challenge.protectionSpace.serverTrust,
+              challenge.protectionSpace.host.hasSuffix(".ts.net") else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        // Trust the Tailscale Serve certificate for *.ts.net hosts
+        completionHandler(.useCredential, URLCredential(trust: serverTrust))
     }
 }

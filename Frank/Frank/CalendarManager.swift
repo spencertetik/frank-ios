@@ -186,6 +186,36 @@ final class CalendarManager {
             }
         
         syncToWidgets()
+        syncToMissionControl()
+    }
+
+    /// Sync events to Mission Control dashboard
+    private func syncToMissionControl() {
+        let formatter = ISO8601DateFormatter()
+        let events = upcomingEvents.map { event -> [String: Any] in
+            [
+                "title": event.title,
+                "start": event.isAllDay ? "All Day" : formatter.string(from: event.startDate),
+                "end": event.isAllDay ? "" : formatter.string(from: event.endDate),
+                "calendar": event.calendarName,
+                "isAllDay": event.isAllDay,
+                "location": event.location ?? ""
+            ]
+        }
+
+        let useTailscale = UserDefaults.standard.bool(forKey: "useTailscale")
+        let localHost = UserDefaults.standard.string(forKey: "gatewayHost") ?? "192.168.1.197"
+        let tailscaleHost = UserDefaults.standard.string(forKey: "gatewayHostTailscale") ?? "100.118.254.15"
+        let host = useTailscale ? tailscaleHost : localHost
+        guard let url = URL(string: "http://\(host):3002/api/calendar"),
+              let body = try? JSONSerialization.data(withJSONObject: ["events": events]) else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        URLSession.shared.dataTask(with: request).resume()
     }
 
     /// Sync events to App Groups shared storage for widgets
