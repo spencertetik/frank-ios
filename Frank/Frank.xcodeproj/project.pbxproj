@@ -14,6 +14,7 @@
 		F1000000000000000000015 /* FrankWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F1000000000000000000001 /* FrankWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F1000000000000000000017 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000018 /* Theme.swift */; };
 		F1000000000000000000020 /* SharedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000021 /* SharedState.swift */; };
+		F1A5EC1C2FF4E4C000F6A3A1 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5EC1D2FF4E4C000F6A3A1 /* MarkdownUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,6 +66,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F1A5EC1C2FF4E4C000F6A3A1 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -132,6 +134,7 @@
 			);
 			name = Frank;
 			packageProductDependencies = (
+				F1A5EC1D2FF4E4C000F6A3A1 /* MarkdownUI */,
 			);
 			productName = Frank;
 			productReference = D2545E4B2F4065380085757D /* Frank.app */;
@@ -185,6 +188,9 @@
 			productRefGroup = D2545E4C2F4065380085757D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				F1A5EC1E2FF4E4C000F6A3A1 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+			);
 			targets = (
 				D2545E4A2F4065380085757D /* Frank */,
 				F1000000000000000000002 /* FrankWidgets */,
@@ -551,6 +557,26 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F1A5EC1E2FF4E4C000F6A3A1 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F1A5EC1D2FF4E4C000F6A3A1 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F1A5EC1E2FF4E4C000F6A3A1 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+
 	};
 	rootObject = D2545E432F4065380085757D /* Project object */;
 }

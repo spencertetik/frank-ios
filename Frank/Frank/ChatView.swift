@@ -430,10 +430,6 @@ struct ChatBubble: View {
     let message: GatewayClient.ChatMessage
     var audioService: AudioService
     
-    private static let markdownOptions = AttributedString.MarkdownParsingOptions(
-        interpretedSyntax: .full
-    )
-    
     var body: some View {
         HStack {
             if message.isFromUser { Spacer(minLength: 60) }
@@ -504,14 +500,13 @@ struct ChatBubble: View {
             
             // Text
             if !message.text.isEmpty {
-                Group {
-                    if let attributed = try? AttributedString(markdown: message.text, options: Self.markdownOptions) {
-                        Text(attributed)
-                    } else {
-                        Text(message.text)
-                    }
+                if message.isFromUser {
+                    Text(message.text)
+                        .multilineTextAlignment(.trailing)
+                } else {
+                    MarkdownView(text: message.text)
+                        .multilineTextAlignment(.leading)
                 }
-                .multilineTextAlignment(message.isFromUser ? .trailing : .leading)
             }
         }
         .padding(.horizontal, 14)
